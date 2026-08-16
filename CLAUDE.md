@@ -55,19 +55,26 @@ These constraints are load-bearing. Ignoring them wastes hours.
   `docs/presentation.pptx` comes from that run.
 - 80 unit tests pass (`python -m pytest tests/`).
 - The repo is published at `github.com/yaeldorin-glitch/biu-bigdata-support-tickets-1` (public).
+- **The Docker stack has been started and verified end to end**, for the first
+  time, against `docker-compose.slim.yml`: 50 real tickets sent through Kafka →
+  Spark Structured Streaming → MinIO (bronze then silver, medallion layout
+  intact) → Elasticsearch (`dense_vector`, 384 dims, cosine, kNN-indexed —
+  confirmed via the actual mapping, not assumed). The batch KPI job's
+  self-verification against the pure-Python reference passed (83 KPIs, no
+  mismatches). `/search`, `/route`, and `/ask` all returned correct results
+  against the live index. See `docs/DEMO.md`'s troubleshooting table for the
+  real bugs this surfaced and how each was fixed — read it before re-running,
+  it will save you the same hour it cost the first time.
 
-### Never executed — this is the open work
+### Still open
 
-- **The Docker stack has never been started.** Not once, by anyone. It was
-  authored in an environment with no Docker daemon. `docker-compose.slim.yml`,
-  `docker/spark/Dockerfile`, `src/tickets/spark/stream_job.py` and
-  `src/tickets/spark/batch_kpis.py` are all written to the documented APIs and
-  standard patterns, but they are **unproven**.
-- `demo.ps1` — same caveat, never run against a live stack.
-- The Elasticsearch writes, the `dense_vector` kNN queries, and the
-  elasticsearch-hadoop Spark connector.
-
-**Expect the first `docker compose up` to surface real bugs.** That is the job.
+- **`demo.ps1` never existed as a file** — it was the planned name in early
+  notes, but what actually got built and committed is `run.ps1`, and the
+  README documents `run.ps1`. Nobody has run `run.ps1` against a live stack;
+  the verification above was done with the raw `docker compose` /
+  `spark-submit` commands directly. Run `run.ps1` once before relying on it.
+- **Nobody has recorded the demo yet** — required deliverable, 10% of the
+  grade, and the stack is now in a state where that should go smoothly.
 
 ---
 
@@ -75,21 +82,15 @@ These constraints are load-bearing. Ignoring them wastes hours.
 
 | # | task | status |
 |---|---|---|
-| 1 | Get the Docker stack running | **the current task** |
-| 2 | Record a screen demo (required deliverable, 10% of the grade) | blocked on 1 |
-| 3 | Owner reads and understands `src/tickets/core/` | ongoing, hers to do |
+| 1 | Get the Docker stack running | **done — see "Verified working" above** |
+| 2 | Run `run.ps1` once to confirm the guided script itself works | open |
+| 3 | Record a screen demo (required deliverable, 10% of the grade) | open, no longer blocked |
+| 4 | Owner reads and understands `src/tickets/core/` | ongoing, hers to do |
+| 5 | Confirm team size (brief specifies teams of 3; these docs speak of one owner) | worth a quick check with the instructor |
 
-### Task 1 in detail
-
-```powershell
-.\demo.ps1 -Prepare     # pulls ~3GB, warms the Spark jar cache. 30-40 min.
-.\demo.ps1              # the guided sequence
-.\demo.ps1 -Offline     # fallback: same AI capabilities, no Docker
-```
-
-`docs/DEMO.md` has the full runbook, a troubleshooting table, and the questions
-to expect in the viva. When something fails, read the container logs before
-changing code:
+`docs/DEMO.md` has the full runbook, a troubleshooting table with every bug
+found so far and its fix, and the questions to expect in the viva. When
+something fails, read the container logs before changing code:
 
 ```powershell
 docker compose -f docker-compose.slim.yml logs elasticsearch --tail 50
