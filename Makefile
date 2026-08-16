@@ -24,20 +24,20 @@ sample:  ## regenerate the committed 300-row sample from the full CSV
 
 # --- docker stack ----------------------------------------------------------
 
-up:  ## start kafka, minio, elasticsearch, kibana and spark
-	docker compose up -d --build
+up:  ## start kafka, minio, elasticsearch and spark (slim: fits an 8GB machine)
+	docker compose -f docker-compose.slim.yml up -d --build
 	@echo "waiting for elasticsearch..."
 	@until curl -fs http://localhost:9200/_cluster/health >/dev/null 2>&1; do sleep 3; done
-	@echo "stack is up: kibana http://localhost:5601  minio http://localhost:9001"
+	@echo "stack is up: minio http://localhost:9001 (no kibana in the slim stack)"
 
 down:  ## stop the stack (keeps volumes)
-	docker compose down
+	docker compose -f docker-compose.slim.yml down
 
 destroy:  ## stop the stack and delete all data
-	docker compose down -v
+	docker compose -f docker-compose.slim.yml down -v
 
 logs:  ## tail the stack logs
-	docker compose logs -f --tail=100
+	docker compose -f docker-compose.slim.yml logs -f --tail=100
 
 indices:  ## create the elasticsearch indices with the dense_vector mapping
 	python -c "from tickets.serving.es_client import create_indices; print(create_indices())"
@@ -45,15 +45,20 @@ indices:  ## create the elasticsearch indices with the dense_vector mapping
 produce:  ## replay the CSV onto the kafka topic
 	python -m tickets.ingest.producer --rate 200
 
-stream:  ## run the spark structured streaming job
-	docker compose exec spark spark-submit \
+# Target docker/spark/run_module.py, not the .py file directly: spark-submit
+# runs its target as a bare script with no parent package, which breaks the
+# relative imports in tickets.spark.*. The launcher runs it as a real module
+# import instead (the effect of `python -m`, which spark-submit has no flag for).
+
+stream:  ## run the spark structured streaming job (needs a fitted offline model -- see docs/DEMO.md)
+	docker compose -f docker-compose.slim.yml exec spark spark-submit \
 		--packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1,org.apache.hadoop:hadoop-aws:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.262,org.elasticsearch:elasticsearch-spark-30_2.12:8.13.4 \
-		/opt/project/src/tickets/spark/stream_job.py
+		/opt/project/docker/spark/run_module.py tickets.spark.stream_job --trigger-seconds 5
 
 kpis:  ## run the batch KPI job over the silver layer
-	docker compose exec spark spark-submit \
+	docker compose -f docker-compose.slim.yml exec spark spark-submit \
 		--packages org.apache.hadoop:hadoop-aws:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.262,org.elasticsearch:elasticsearch-spark-30_2.12:8.13.4 \
-		/opt/project/src/tickets/spark/batch_kpis.py
+		/opt/project/docker/spark/run_module.py tickets.spark.batch_kpis
 
 api:  ## serve the REST API against elasticsearch
 	uvicorn tickets.serving.api:app --host 0.0.0.0 --port 8000 --reload

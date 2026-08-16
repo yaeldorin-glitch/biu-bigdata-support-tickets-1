@@ -109,11 +109,13 @@ evaluate, aggregate — over the committed 300-row sample or the full CSV if you
 have it, and writes `output/report.json`. It takes about a minute for 5,000
 tickets.
 
-For the full stack:
+For the full stack (on an 8GB machine, `make up` uses `docker-compose.slim.yml`,
+which drops Kibana and caps memory to fit):
 
 ```bash
 cp .env.example .env
-make up          # kafka + minio + elasticsearch + kibana + spark
+EMBEDDING_BACKEND=offline tickets-pipeline --limit 3000  # one-time: fits the offline model make stream needs
+make up          # kafka + minio + elasticsearch + spark
 make indices     # create the dense_vector mapping BEFORE any writes
 make produce     # replay the CSV onto the kafka topic
 make stream      # spark structured streaming: kafka -> minio + elasticsearch
@@ -121,8 +123,9 @@ make kpis        # spark batch job: silver -> gold + elasticsearch
 make api         # http://localhost:8000/docs
 ```
 
-Kibana is on <http://localhost:5601>, MinIO's console on <http://localhost:9001>
-(`minioadmin` / `minioadmin`).
+MinIO's console is on <http://localhost:9001> (`minioadmin` / `minioadmin`).
+Verified against this exact sequence — see [`docs/DEMO.md`](docs/DEMO.md) for
+the bugs that surfaced the first time and how each was fixed.
 
 > **Dataset.** The 26MB CSV is CC BY-NC 4.0 and is not committed. See
 > [`data/README.md`](data/README.md) for how to fetch it. A stratified 300-row
@@ -398,17 +401,21 @@ Honest scope, since it affects how much you should trust what is here:
 | hallucinated RAG citations are stripped | unit test |
 | KPI maths | unit tests + Spark/reference cross-check in `batch_kpis.py` |
 
-| **not** executed in the authoring environment | why |
-|---|---|
-| the Docker Compose stack | no Docker daemon available |
-| the Spark streaming and batch jobs | `pyspark` could not be installed |
-| the Elasticsearch writes and kNN queries | no cluster reachable |
-| the neural embedding backend | model weights could not be downloaded |
+The Docker Compose stack, the Spark streaming and batch jobs, and the
+Elasticsearch writes and kNN queries were authored with no reachable cluster to
+test against. They have since been **run against the live stack and verified**:
+50 real tickets through Kafka → Spark → MinIO (bronze then silver) →
+Elasticsearch, the `dense_vector` mapping confirmed correct via the live index
+(not assumed), the batch job's self-verification against the pure-Python
+reference passing, and `/search`, `/route`, `/ask` all returning correct
+results against the live index. `docs/DEMO.md`'s troubleshooting table lists
+every real bug that surfaced on the first run and how each was fixed — six of
+them, from two retired Docker Hub image tags to a missing `pyarrow` dependency.
+Read it before re-running; it will save you the hour it cost the first time.
 
-Those paths are written to the documented APIs and follow the standard patterns,
-but they have not been run. **Run `make up` and work through the Makefile targets
-before demoing them**, and budget time for the first `spark-submit`, which
-resolves several hundred MB of Ivy jars.
+**Run `make up`** (uses `docker-compose.slim.yml`, sized for an 8GB machine) to
+bring the stack up yourself, and budget time for the first `spark-submit`,
+which resolves several hundred MB of Ivy jars.
 
 ---
 
