@@ -19,7 +19,8 @@ _Generated from `output/report.json`. Embedding backend: **offline:tfidf+svd** (
 | `majority_class` | 29.2% | 0.045 | 7,145 |
 | `keyword_rules` | 27.4% | 0.208 | 7,145 |
 | `embedding_centroid` | 28.4% | 0.252 | 7,145 |
-| `embedding_knn_k15` | 48.4% | 0.384 | 7,145 |
+| `embedding_knn_k5` | 58.4% | 0.529 | 7,145 |
+| `linear_svm_tfidf` | 60.6% | 0.604 | 7,145 |
 
 ## Retrieval: semantic vs keyword vs hybrid
 
@@ -75,10 +76,10 @@ _Relevance is a proxy: a result counts as relevant if it shares at least two tag
 
 | stage | seconds |
 |---|---|
-| load | 0.7 |
-| enrich | 6.5 |
-| embed | 123.7 |
-| index | 10.9 |
-| eval_routing | 17.8 |
-| eval_retrieval | 39.3 |
-| kpis | 95.2 |
+| load | 1.0 |
+| enrich | 8.4 |
+| embed | 205.5 |
+| index | 16.6 |
+| eval_routing | 107.9 |
+| eval_retrieval | 59.5 |
+| kpis | 137.8 |

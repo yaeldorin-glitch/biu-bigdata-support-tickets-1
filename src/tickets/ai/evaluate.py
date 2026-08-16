@@ -35,7 +35,7 @@ from typing import Any, Sequence
 import numpy as np
 
 from ..core.classify import classify_queue
-from .router import CentroidRouter, KnnRouter
+from .router import CentroidRouter, KnnRouter, LinearRouter
 from .search import InMemoryIndex
 
 logger = logging.getLogger(__name__)
@@ -117,9 +117,9 @@ def evaluate_routing(
     tickets: Sequence[Any],
     test_fraction: float = 0.25,
     seed: int = 42,
-    knn_k: int = 15,
+    knn_k: int = 5,
 ) -> list[RoutingResult]:
-    """Compare four routing strategies on a stratified held-out split."""
+    """Compare five routing strategies on a stratified held-out split."""
     rows = [t if isinstance(t, dict) else t.to_dict() for t in tickets]
     rows = [r for r in rows if r.get("queue") and r.get("embedding")]
     if len(rows) < 50:
@@ -188,6 +188,22 @@ def evaluate_routing(
             per_class_report(test_labels, predictions),
         )
     )
+
+    # 5. Linear SVM over word+char TF-IDF -- the strongest deployable router.
+    train_texts = [r.get("text_redacted") or r.get("text", "") for r in train]
+    test_texts = [r.get("text_redacted") or r.get("text", "") for r in test]
+    try:
+        linear = LinearRouter().fit(train_texts, train_labels)
+        predictions = [p.label for p in linear.predict(test_texts)]
+        results.append(
+            RoutingResult(
+                "linear_svm_tfidf", accuracy(test_labels, predictions),
+                macro_f1(test_labels, predictions), len(test_labels),
+                per_class_report(test_labels, predictions),
+            )
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("linear router evaluation skipped (%s)", exc)
 
     return results
 

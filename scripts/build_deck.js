@@ -47,6 +47,13 @@ const kpi = (name, dim, bucket) =>
 
 const pct = (x) => `${(x * 100).toFixed(1)}%`;
 
+// Method names carry their hyperparameter (embedding_knn_k5), so look them up by
+// prefix rather than hardcoding -- otherwise retuning k silently breaks the deck.
+const byPrefix = (prefix) =>
+  report.routing_evaluation.find((r) => r.method.startsWith(prefix));
+const bestRouter = report.routing_evaluation.reduce((a, b) => (b.macro_f1 > a.macro_f1 ? b : a));
+const knnRouter = byPrefix("embedding_knn");
+
 function darkSlide() {
   const s = pres.addSlide();
   s.background = { color: NAVY };
@@ -351,8 +358,11 @@ function arrow(slide, x, y) {
 {
   const s = lightSlide("Result: routing tickets from text alone", "Stratified 25% held-out split, n = 7,145");
 
-  const order = ["majority_class", "keyword_rules", "embedding_centroid", "embedding_knn_k15"];
-  const labels = ["Always guess\nmajority class", "Keyword rules", "Embedding\ncentroid", "Embedding k-NN\n(k=15)"];
+  const order = ["majority_class", "keyword_rules", "embedding_centroid",
+                 knnRouter.method, "linear_svm_tfidf"];
+  const labels = ["Always guess\nmajority class", "Keyword rules", "Embedding\ncentroid",
+                  `Embedding k-NN\n(k=${knnRouter.method.replace("embedding_knn_k", "")})`,
+                  "Linear SVM\nword+char TF-IDF"];
 
   s.addChart(
     pres.ChartType.bar,
@@ -360,13 +370,13 @@ function arrow(slide, x, y) {
       {
         name: "Accuracy",
         labels,
-        values: order.map((m) => Number((routing[m].accuracy * 100).toFixed(1))),
+        values: order.map((m) => Number(((routing[m] || {accuracy: 0}).accuracy * 100).toFixed(1))),
       },
     ],
     {
       x: 0.55, y: 1.95, w: 6.5, h: 4.05,
       barDir: "col",
-      chartColors: [SLATE, SLATE, SLATE, TEAL],
+      chartColors: [SLATE, SLATE, SLATE, SLATE, TEAL],
       varyColors: true,
       showTitle: true,
       title: "Accuracy (%)",
@@ -386,12 +396,12 @@ function arrow(slide, x, y) {
 
   statCard(s, {
     x: 7.4, y: 1.95, w: 2.55, h: 1.75,
-    value: pct(routing.embedding_knn_k15.accuracy), label: "k-NN accuracy",
+    value: pct(bestRouter.accuracy), label: "best router accuracy",
     sub: `vs ${pct(routing.majority_class.accuracy)} majority`, color: TEAL, fill: LIGHT,
   });
   statCard(s, {
     x: 10.15, y: 1.95, w: 2.55, h: 1.75,
-    value: routing.embedding_knn_k15.macro_f1.toFixed(3), label: "macro-F1",
+    value: bestRouter.macro_f1.toFixed(3), label: "macro-F1",
     sub: `vs ${routing.majority_class.macro_f1.toFixed(3)} majority`, color: TEAL, fill: LIGHT,
   });
 

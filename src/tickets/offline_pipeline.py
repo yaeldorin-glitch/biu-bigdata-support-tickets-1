@@ -65,7 +65,7 @@ def run(
     output_dir: Path,
     limit: int | None = None,
     eval_queries: int = 200,
-    knn_k: int = 15,
+    knn_k: int = 5,
     skip_retrieval_eval: bool = False,
 ) -> dict[str, Any]:
     settings = get_settings()
@@ -214,7 +214,7 @@ def main(argv: list[str] | None = None) -> int:
                         help="number of tickets to process (default 5000; use --full for all)")
     parser.add_argument("--full", action="store_true", help="process the entire dataset")
     parser.add_argument("--eval-queries", type=int, default=200)
-    parser.add_argument("--knn-k", type=int, default=15)
+    parser.add_argument("--knn-k", type=int, default=5)
     parser.add_argument("--skip-retrieval-eval", action="store_true",
                         help="skip the retrieval benchmark (it is the slowest step)")
     args = parser.parse_args(argv)

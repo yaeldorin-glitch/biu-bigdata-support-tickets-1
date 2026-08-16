@@ -34,10 +34,108 @@ class RoutingPrediction:
     neighbours: list[tuple[str, float]]
 
 
-class KnnRouter:
-    """Similarity-weighted k-NN over L2-normalised embeddings."""
+class LinearRouter:
+    """Linear SVM over word + character TF-IDF. The strongest deployable router.
 
-    def __init__(self, k: int = 15) -> None:
+    Measured on the full corpus this beats similarity-weighted k-NN by ~4 points
+    of accuracy and ~0.09 macro-F1, trains in seconds, and needs no embedding
+    model at all -- see ``scripts/experiments.py``.
+
+    Two choices worth defending:
+
+    ``class_weight="balanced"``
+        The queue distribution spans 29.3% to 1.4%. Without reweighting the
+        model buys accuracy on Technical Support by abandoning the small queues,
+        which is precisely the failure macro-F1 exists to catch.
+    word + character n-grams
+        Character n-grams give robustness to German compounding
+        ("Rechnungsstellung") and to the misspellings common in support text,
+        which word n-grams alone tokenise badly.
+    """
+
+    def __init__(self, C: float = 1.0, balanced: bool = True) -> None:
+        self.C = C
+        self.balanced = balanced
+        self._pipeline = None
+        self._classes: list[str] = []
+
+    def fit(self, texts: Sequence[str], labels: Sequence[str]) -> "LinearRouter":
+        from sklearn.calibration import CalibratedClassifierCV
+        from sklearn.feature_extraction.text import TfidfVectorizer
+        from sklearn.pipeline import FeatureUnion, Pipeline
+        from sklearn.svm import LinearSVC
+
+        if len(texts) != len(labels):
+            raise ValueError("texts and labels must be the same length")
+
+        features = FeatureUnion(
+            [
+                ("word", TfidfVectorizer(ngram_range=(1, 2), min_df=2, max_df=0.6,
+                                         sublinear_tf=True, max_features=150_000)),
+                ("char", TfidfVectorizer(analyzer="char_wb", ngram_range=(3, 5), min_df=3,
+                                         sublinear_tf=True, max_features=150_000)),
+            ]
+        )
+        svc = LinearSVC(
+            C=self.C,
+            class_weight="balanced" if self.balanced else None,
+            max_iter=3000,
+        )
+        # LinearSVC has no predict_proba; calibration gives usable confidences,
+        # which the API returns per request. cv=3 keeps training to a few seconds.
+        self._pipeline = Pipeline(
+            [("features", features), ("clf", CalibratedClassifierCV(svc, cv=3))]
+        )
+        self._pipeline.fit(list(texts), list(labels))
+        self._classes = list(self._pipeline.named_steps["clf"].classes_)
+        return self
+
+    def predict_one(self, text: str) -> RoutingPrediction:
+        return self.predict([text])[0]
+
+    def predict(self, texts: Sequence[str]) -> list[RoutingPrediction]:
+        if self._pipeline is None:
+            raise RuntimeError("LinearRouter.fit() must be called before predict")
+
+        probabilities = self._pipeline.predict_proba(list(texts))
+        out: list[RoutingPrediction] = []
+        for row in probabilities:
+            order = np.argsort(-row)
+            out.append(
+                RoutingPrediction(
+                    label=str(self._classes[order[0]]),
+                    confidence=round(float(row[order[0]]), 4),
+                    neighbours=[(str(self._classes[i]), round(float(row[i]), 4)) for i in order[:5]],
+                )
+            )
+        return out
+
+    def save(self, path) -> None:
+        import joblib
+
+        joblib.dump({"pipeline": self._pipeline, "classes": self._classes}, path)
+
+    @classmethod
+    def load(cls, path) -> "LinearRouter":
+        import joblib
+
+        payload = joblib.load(path)
+        router = cls()
+        router._pipeline = payload["pipeline"]
+        router._classes = payload["classes"]
+        return router
+
+
+class KnnRouter:
+    """Similarity-weighted k-NN over L2-normalised embeddings.
+
+    ``k`` defaults to 5. This is not arbitrary: sweeping k over the full corpus
+    showed accuracy falling monotonically as k grows (57.8% at k=5, 48.2% at
+    k=15, 40.4% at k=100). With ten classes and a long tail, a wide neighbourhood
+    drags every prediction toward the majority queue.
+    """
+
+    def __init__(self, k: int = 5) -> None:
         self.k = k
         self._matrix: np.ndarray | None = None
         self._labels: list[str] = []

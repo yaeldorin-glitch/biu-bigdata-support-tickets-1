@@ -68,6 +68,7 @@ class State:
         self.index = None
         self.backend = None
         self.router = None
+        self.linear_router = None
         self.mode = "uninitialised"
         self.report: dict[str, Any] | None = None
 
@@ -84,7 +85,7 @@ def _init_offline(limit: int | None = None) -> None:
     """Build an in-memory index straight from the CSV."""
     import numpy as np
 
-    from ..ai.router import KnnRouter
+    from ..ai.router import KnnRouter, LinearRouter
     from ..ai.search import InMemoryIndex
     from ..core.embeddings import build_backend, set_backend
     from ..core.enrich import attach_embeddings, enrich_ticket
@@ -104,10 +105,19 @@ def _init_offline(limit: int | None = None) -> None:
     state.backend = backend
     state.index = InMemoryIndex(tickets, backend)
     labelled = [t for t in tickets if t.queue]
-    state.router = KnnRouter(k=15).fit(
+    state.router = KnnRouter(k=5).fit(
         np.asarray([t.embedding for t in labelled], dtype="float32"),
         [t.queue for t in labelled],
     )
+    # The linear SVM is the strongest deployable router (see docs/RESULTS.md),
+    # so /route reports it alongside k-NN and the rule baseline.
+    try:
+        state.linear_router = LinearRouter().fit(
+            [t.text_redacted or t.text for t in labelled], [t.queue for t in labelled]
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("linear router unavailable (%s)", exc)
+
     state.mode = f"offline ({len(tickets)} tickets, {backend.name})"
     logger.info("API ready in offline mode: %s", state.mode)
 
@@ -242,6 +252,14 @@ def route(request: RouteRequest) -> dict[str, Any]:
         },
         "sentiment": score_sentiment(text).label,
     }
+
+    if state.linear_router is not None:
+        linear = state.linear_router.predict_one(text)
+        response["linear_svm"] = {
+            "queue": linear.label,
+            "confidence": linear.confidence,
+            "runner_up": linear.neighbours[1:3],
+        }
 
     if state.router is not None:
         vector = state.backend.encode([text])[0]

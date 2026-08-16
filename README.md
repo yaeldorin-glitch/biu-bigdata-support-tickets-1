@@ -23,7 +23,8 @@ held-out split (7,145 tickets):
 | always guess the majority class | 29.2% | 0.045 |
 | keyword rules (hand-written) | 27.4% | 0.208 |
 | nearest class centroid (embeddings) | 28.4% | 0.252 |
-| **k-NN over embeddings (k=15)** | **48.4%** | **0.384** |
+| k-NN over embeddings (k=5) | 58.4% | 0.529 |
+| **linear SVM, word+char TF-IDF** | **60.6%** | **0.604** |
 
 Two things worth saying out loud, because they are the interesting part:
 
@@ -32,24 +33,56 @@ Two things worth saying out loud, because they are the interesting part:
   real signal — their macro-F1 is 0.208 against the majority baseline's 0.045 —
   but on raw accuracy they are worse than useless. This is exactly why the
   evaluation reports both numbers.
-- **The embedding k-NN is the only method that clears the bar on both metrics**,
-  and it does so without training anything: it reuses the same vectors that power
-  semantic search.
+- **`k` mattered more than the model did.** k-NN at k=15 scores 48.2%; at k=5 it
+  scores 58.4%. Accuracy falls monotonically as k grows (40.4% at k=100) because
+  with ten classes and a long tail, a wide neighbourhood drags every prediction
+  toward the majority queue. Ten lines of hyperparameter sweep bought more than
+  any architectural change.
 
-Full numbers, including retrieval benchmarks and per-queue KPIs, in
-[`docs/RESULTS.md`](docs/RESULTS.md) — generated from the pipeline's own output,
-not typed by hand.
+Full numbers in [`docs/RESULTS.md`](docs/RESULTS.md) and the improvement sweep in
+[`docs/CEILING.md`](docs/CEILING.md) — both generated from the pipeline's own
+output, not typed by hand.
 
 ---
 
 ## Quick start
 
-The fastest path needs **no Docker, no API key and no network**:
+The fastest path needs **no Docker, no API key and no network**. Install the
+package once, and every command below works from any directory:
 
 ```bash
-pip install -r requirements.txt
-python -m tickets.offline_pipeline --limit 5000
+cd biu-bigdata-support-tickets     # you must be INSIDE the project folder for this step
+pip install -e .
+tickets-pipeline --limit 5000
 ```
+
+<details>
+<summary><b>Windows / PowerShell</b></summary>
+
+```powershell
+cd C:\path\to\biu-bigdata-support-tickets
+pip install -e .
+tickets-pipeline --limit 5000
+```
+
+Environment variables use different syntax from Linux — `VAR=value` on one line
+does **not** work in PowerShell:
+
+```powershell
+$env:EMBEDDING_BACKEND = "sentence-transformers"   # PowerShell
+```
+```cmd
+set EMBEDDING_BACKEND=sentence-transformers        :: cmd.exe
+```
+
+`ModuleNotFoundError: No module named 'tickets'` means one of two things: you are
+not in the project folder, or you skipped `pip install -e .`. Running
+`python -m tickets.offline_pipeline` from your home directory will always fail —
+use the `tickets-pipeline` command instead, which works anywhere.
+</details>
+
+Without installing, you can still run it from the project root with
+`PYTHONPATH=src python -m tickets.offline_pipeline`.
 
 That runs the complete logic — parse, validate, redact, enrich, embed, index,
 evaluate, aggregate — over the committed 300-row sample or the full CSV if you
