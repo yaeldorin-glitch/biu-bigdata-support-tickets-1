@@ -1,0 +1,25 @@
+# --- core (always needed) --------------------------------------------------
+numpy>=1.26,<3
+pandas>=2.0
+scikit-learn>=1.3          # offline embedding backend (TF-IDF + SVD)
+joblib>=1.3                # persisting the fitted offline model
+
+# --- pipeline --------------------------------------------------------------
+pyspark==3.5.1
+kafka-python>=2.0.2        # producer
+elasticsearch>=8.13,<9     # index management + serving queries
+
+# --- serving ---------------------------------------------------------------
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pydantic>=2.6
+
+# --- AI extras (optional) --------------------------------------------------
+# The pipeline runs without these: EMBEDDING_BACKEND=auto falls back to the
+# offline TF-IDF+SVD backend, and LLM_PROVIDER=none uses rule-based enrichment.
+# Install them for the multilingual neural embeddings and LLM enrichment/RAG.
+sentence-transformers>=2.7 ; python_version >= "3.9"
+anthropic>=0.25 ; python_version >= "3.9"
+
+# --- dev -------------------------------------------------------------------
+pytest>=8.0

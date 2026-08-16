@@ -1,0 +1,45 @@
+# --- dataset ---------------------------------------------------------------
+# The full Kaggle export is CC BY-NC 4.0 and 26MB. It is deliberately NOT
+# committed: see data/README.md for how to fetch it. A 300-row sample lives in
+# data/sample/ so the repo is runnable out of the box.
+data/raw/
+*.csv
+!data/sample/*.csv
+
+# --- pipeline output -------------------------------------------------------
+output/
+*.joblib
+*.parquet
+spark-warehouse/
+checkpoints/
+metastore_db/
+derby.log
+
+# --- python ----------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# --- secrets ---------------------------------------------------------------
+.env
+*.pem
+*.key
+
+# --- editors / OS ----------------------------------------------------------
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+.ipynb_checkpoints/

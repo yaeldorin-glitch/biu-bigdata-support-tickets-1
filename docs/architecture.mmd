@@ -1,0 +1,64 @@
+%% Architecture of the ticket intelligence pipeline.
+%% Render at https://mermaid.live or with: mmdc -i architecture.mmd -o architecture.svg
+flowchart TB
+    subgraph SRC["Source"]
+        CSV[("Kaggle CSV<br/>28,587 tickets<br/>en + de free text")]
+    end
+
+    subgraph INGEST["Ingest — ELT extract/load"]
+        PROD["producer.py<br/>CSV → JSON<br/>keyed by content hash"]
+        KAFKA{{"Apache Kafka<br/>topic: tickets.raw"}}
+    end
+
+    subgraph PROCESS["Transform — Spark Structured Streaming"]
+        STREAM["stream_job.py<br/>foreachBatch"]
+        ENRICH["Enrichment UDFs<br/>─────────────<br/>normalise text<br/>redact PII<br/>detect language<br/>sentiment<br/>rule classify<br/>embed 384-d"]
+    end
+
+    subgraph LAKE["Object store — MinIO (S3A)"]
+        BRONZE[["bronze/<br/>raw parquet<br/>immutable"]]
+        SILVER[["silver/<br/>enriched parquet"]]
+        GOLD[["gold/<br/>KPI aggregates"]]
+    end
+
+    subgraph SERVE["Serving"]
+        ES[("Elasticsearch<br/>dense_vector 384<br/>cosine kNN + BM25")]
+        KIB["Kibana<br/>dashboards"]
+        API["FastAPI<br/>/search /ask /route /kpis"]
+    end
+
+    subgraph AI["AI capability — Part B"]
+        EMB["Embeddings<br/>multilingual MiniLM<br/>(offline TF-IDF+SVD fallback)"]
+        SEM["Semantic search<br/>kNN vs BM25 vs hybrid"]
+        RAG["RAG /ask<br/>grounded + citation-checked"]
+        ROUTE["kNN router<br/>predicts queue"]
+        LLMB["LLM enrichment<br/>optional, PII-gated"]
+    end
+
+    BATCH["batch_kpis.py<br/>Spark batch"]
+
+    CSV --> PROD --> KAFKA --> STREAM
+    STREAM --> BRONZE
+    STREAM --> ENRICH
+    ENRICH --> SILVER
+    ENRICH --> ES
+    SILVER --> BATCH --> GOLD
+    BATCH --> ES
+    ES --> KIB
+    ES --> API
+
+    EMB -.-> ENRICH
+    EMB -.-> SEM
+    SEM --> API
+    RAG --> API
+    ROUTE --> API
+    LLMB -.-> ENRICH
+    ES -.-> SEM
+    ES -.-> RAG
+
+    classDef store fill:#e8f0fe,stroke:#4285f4,stroke-width:1px
+    classDef ai fill:#fce8e6,stroke:#ea4335,stroke-width:1px
+    classDef proc fill:#e6f4ea,stroke:#34a853,stroke-width:1px
+    class BRONZE,SILVER,GOLD,ES,KAFKA store
+    class EMB,SEM,RAG,ROUTE,LLMB ai
+    class STREAM,ENRICH,BATCH,PROD proc
