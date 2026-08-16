@@ -1,6 +1,6 @@
 # Results
 
-_Generated from `output/report.json`. Embedding backend: **offline:tfidf+svd** (dim 384). Corpus: **28,587** tickets._
+_Generated from `output/report.json`. Embedding backend: **sentence-transformers:paraphrase-multilingual-MiniLM-L12-v2** (dim 384). Corpus: **28,587** tickets._
 
 ## Corpus
 
@@ -18,17 +18,17 @@ _Generated from `output/report.json`. Embedding backend: **offline:tfidf+svd** (
 |---|---|---|---|
 | `majority_class` | 29.2% | 0.045 | 7,145 |
 | `keyword_rules` | 27.4% | 0.208 | 7,145 |
-| `embedding_centroid` | 28.4% | 0.252 | 7,145 |
-| `embedding_knn_k5` | 58.4% | 0.529 | 7,145 |
+| `embedding_centroid` | 22.0% | 0.205 | 7,145 |
+| `embedding_knn_k5` | 64.6% | 0.605 | 7,145 |
 | `linear_svm_tfidf` | 64.8% | 0.645 | 7,145 |
 
 ## Retrieval: semantic vs keyword vs hybrid
 
 | method | queue purity@k | precision@k | MRR | queries | k |
 |---|---|---|---|---|---|
-| `semantic` | 0.294 | 0.713 | 0.823 | 250 | 5 |
-| `keyword` | 0.322 | 0.728 | 0.859 | 250 | 5 |
-| `hybrid` | 0.294 | 0.745 | 0.844 | 250 | 5 |
+| `semantic` | 0.338 | 0.739 | 0.838 | 250 | 5 |
+| `keyword` | 0.325 | 0.731 | 0.851 | 250 | 5 |
+| `hybrid` | 0.351 | 0.755 | 0.865 | 250 | 5 |
 
 _Relevance is a proxy: a result counts as relevant if it shares at least two tags with the query ticket. This rewards topical similarity, which is what routing and deduplication need. Read the numbers comparatively, not absolutely._
 

@@ -22,8 +22,8 @@ held-out split (7,145 tickets):
 |---|---|---|
 | always guess the majority class | 29.2% | 0.045 |
 | keyword rules (hand-written) | 27.4% | 0.208 |
-| nearest class centroid (embeddings) | 28.4% | 0.252 |
-| k-NN over embeddings (k=5) | 58.4% | 0.529 |
+| nearest class centroid (embeddings) | 22.0% | 0.205 |
+| k-NN over neural embeddings (k=5) | 64.6% | 0.605 |
 | **linear SVM, word+char TF-IDF** | **64.8%** | **0.645** |
 
 Two things worth saying out loud, because they are the interesting part:
@@ -34,10 +34,16 @@ Two things worth saying out loud, because they are the interesting part:
   but on raw accuracy they are worse than useless. This is exactly why the
   evaluation reports both numbers.
 - **`k` mattered more than the model did.** k-NN at k=15 scores 48.2%; at k=5 it
-  scores 58.4%. Accuracy falls monotonically as k grows (40.4% at k=100) because
-  with ten classes and a long tail, a wide neighbourhood drags every prediction
-  toward the majority queue. Ten lines of hyperparameter sweep bought more than
-  any architectural change.
+  scores 58.4% on the offline backend. Accuracy falls monotonically as k grows,
+  because with ten classes and a long tail a wide neighbourhood drags every
+  prediction toward the majority queue.
+- **The neural embedding is worth 6 points to k-NN, and nothing to the SVM.**
+  Swapping the offline TF-IDF+SVD backend for
+  `paraphrase-multilingual-MiniLM-L12-v2` moved k-NN from 58.4% to **64.6%**
+  (macro-F1 0.529 to 0.605) and left the linear SVM at 64.8% — as it must, since
+  that model reads sparse term counts and never touches an embedding. Worth
+  stating plainly: a better representation only helps the methods that consume
+  it.
 
 Every figure here is generated from the pipeline's own output rather than typed
 by hand. See [`docs/RESULTS.md`](docs/RESULTS.md) for the full tables,
@@ -59,6 +65,19 @@ tickets-pipeline --limit 5000
 
 <details>
 <summary><b>Windows / PowerShell</b></summary>
+
+Easiest route — open PowerShell **inside the project folder** (in File Explorer,
+type `powershell` in the address bar and press Enter) and run:
+
+```powershell
+.\run.ps1
+```
+
+That checks Python, installs the package, warns you if the dataset or Docker
+memory is wrong, then runs the pipeline. Other modes: `.\run.ps1 -Full`,
+`.\run.ps1 -Api`, `.\run.ps1 -Stack`.
+
+Or do it by hand:
 
 ```powershell
 cd C:\path\to\biu-bigdata-support-tickets
@@ -231,10 +250,12 @@ demo works with no API key.
 
 ---
 
-## What the retrieval benchmark actually showed
+## The retrieval result, and how it changed
 
-This is the result that did **not** go the way the design predicted, and it is
-more instructive than the one that did.
+This is the measurement worth reading twice, because the answer flipped when the
+embedding did.
+
+**With the offline TF-IDF + SVD backend (i.e. LSA):**
 
 | method | queue purity@5 | precision@5 | MRR |
 |---|---|---|---|
@@ -242,39 +263,49 @@ more instructive than the one that did.
 | keyword (BM25) | **0.322** | 0.728 | **0.859** |
 | hybrid (RRF) | 0.294 | **0.745** | 0.844 |
 
-**With the offline LSA backend, semantic search does not beat BM25.** Hybrid wins
-on precision@5, but keyword wins on the other two.
+Semantic search *lost*. That was the expected outcome once you look at what LSA
+is: a linear projection of the same term-document statistics BM25 already scores.
+It compresses lexical information; it adds no semantic information from outside
+the corpus, so it cannot systematically beat the lexical baseline at lexical
+matching.
 
-That is the expected outcome once you look at what LSA is: a linear projection of
-the same term-document statistics BM25 scores directly. It compresses lexical
-information; it does not add semantic information from outside the corpus. So it
-cannot systematically beat the lexical baseline at lexical matching.
+**With `paraphrase-multilingual-MiniLM-L12-v2`:**
 
-The cross-lingual probe makes the same point sharply — a German query retrieves
-essentially **zero** relevant English tickets under either method, because LSA
-shares no vector space across languages:
+| method | queue purity@5 | precision@5 | MRR |
+|---|---|---|---|
+| semantic | **0.338** | 0.739 | 0.838 |
+| keyword (BM25) | 0.325 | 0.731 | **0.851** |
+| **hybrid (RRF)** | **0.351** | **0.755** | **0.865** |
 
-| query | semantic hits in other language | keyword |
+Semantic now beats BM25 on queue purity and precision, and **hybrid wins on all
+three**. The neural model brings outside knowledge — it was trained on
+paraphrase pairs, not on this corpus — which is exactly what LSA could not do.
+
+BM25 still leads on MRR (0.851 vs 0.838). That is consistent rather than
+contradictory: lexical matching is very good at putting an *exact* term match at
+rank 1, while the embedding is better across the whole top-5. Fusing the two with
+RRF beats either alone, which is why hybrid is the default in the API.
+
+### The cross-lingual probe did not work, and we know why
+
+| query | semantic hits in the other language | keyword |
 |---|---|---|
 | `Rechnung falsch berechnet` | 0 | 0 |
 | `Server ist ausgefallen` | 1 | 0 |
 | `cannot reset my password` | 0 | 0 |
 
-The multilingual neural model is expected to change both results, and that is the
-whole reason it is the default. **We have not measured it, so we do not claim
-it.** Reproducing that comparison is one command:
+Near zero, even with the multilingual model. **This is a flaw in the probe, not
+a verdict on the model.** The corpus holds 12,249 German tickets, so a German
+query finds excellent German matches and no English ticket ever reaches the top
+5 — the measurement is swamped by same-language competition before cross-lingual
+ability can show.
 
-```bash
-pip install sentence-transformers
-EMBEDDING_BACKEND=sentence-transformers python -m tickets.offline_pipeline --full
-python scripts/render_results.py --write
-```
-
-Note that routing is a different task, and there the embeddings win decisively
-even in LSA form (48.4% vs 27.4%) — k-NN exploits the *geometry* of the space
-rather than needing cross-lingual alignment.
-
----
+Measuring it properly means restricting the candidate set: run a German query
+with `language=en` filtered on, and check whether the retrieved English tickets
+are topically right. The API already supports that filter
+(`/search?q=...&language=en`); the automated probe does not yet use it. That is
+the first thing we would fix, and we would rather say so than quietly report a
+zero as if it settled the question.
 
 ## Insights from the data
 

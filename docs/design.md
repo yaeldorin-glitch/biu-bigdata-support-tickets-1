@@ -100,10 +100,11 @@ the pipeline never hard-depends on model weights.
 
 **Routing (option f).** Two classifiers predict `queue` from ticket text. A
 similarity-weighted k-NN reuses the search embeddings directly — no separate
-model, no training run. A linear SVM over word + character TF-IDF then beats it
-by 6.4 points (64.8% vs 58.4%) and trains in seconds without any embedding model,
-which is the honest result: for this task, classical sparse features outperform
-the dense ones. Both are exposed side by side on `POST /route`.
+model, no training run. A linear SVM over word + character TF-IDF matches
+it almost exactly (64.8% vs 64.6%) while training in seconds and needing no
+embedding model at all. That near-tie is the honest result, and it is worth
+saying: on this task a well-tuned classical model is as good as a 471MB
+transformer, and far cheaper. Both are exposed side by side on `POST /route`.
 
 **RAG (option c).** `POST /ask` retrieves the k most similar tickets and asks an
 LLM to answer strictly from them. Citations are post-checked against the
@@ -128,8 +129,8 @@ Routing, stratified 25% held-out split, n = 7,145:
 |---|---|---|
 | majority class | 29.2% | 0.045 |
 | keyword rules | 27.4% | 0.208 |
-| embedding centroid | 28.4% | 0.252 |
-| embedding k-NN (k=5) | 58.4% | 0.529 |
+| embedding centroid | 22.0% | 0.205 |
+| k-NN over neural embeddings (k=5) | 64.6% | 0.605 |
 | **linear SVM, word+char TF-IDF** | **64.8%** | **0.645** |
 
 Hyperparameters were swept rather than guessed (`scripts/model_search.py`);
@@ -141,9 +142,16 @@ Retrieval, 250 queries, k=5, proxy relevance (≥2 shared tags):
 
 | method | queue purity@5 | precision@5 | MRR |
 |---|---|---|---|
-| semantic | 0.294 | 0.713 | 0.823 |
-| keyword (BM25) | **0.322** | 0.728 | **0.859** |
-| hybrid (RRF) | 0.294 | **0.745** | 0.844 |
+| semantic | **0.338** | 0.739 | 0.838 |
+| keyword (BM25) | 0.325 | 0.731 | **0.851** |
+| **hybrid (RRF)** | **0.351** | **0.755** | **0.865** |
+
+Both tables use `paraphrase-multilingual-MiniLM-L12-v2`. Re-running the same
+evaluation on the offline TF-IDF+SVD backend gives k-NN 58.4% and semantic
+retrieval 0.294 queue purity -- *losing* to BM25. The neural representation is
+worth 6 points of routing accuracy and reverses the retrieval result, while
+leaving the linear SVM untouched at 64.8%, since that model never reads an
+embedding.
 
 Selected operational findings:
 
