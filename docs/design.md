@@ -109,8 +109,14 @@ almost as good as k-NN; reporting both is what exposes that the rules score
 
 Verified: all 80 unit tests pass; the full pipeline ran end to end over all
 28,587 real rows; the PII gate, the LLM label validator and the RAG citation
-checker are each pinned by a test. The Docker Compose stack, the Spark streaming
-and batch jobs, and the Elasticsearch writes and kNN queries follow the
-documented APIs and standard patterns but were authored with no reachable
-cluster to test against, and should be treated as unproven until exercised
-end to end.
+checker are each pinned by a test. The Docker Compose stack, the Spark
+streaming and batch jobs, and the Elasticsearch writes and kNN queries have
+since been run against the live stack: real tickets through Kafka → Spark →
+MinIO (bronze then silver) → Elasticsearch, the `dense_vector` mapping
+confirmed correct against the live index, and the batch job's self-check
+against the pure-Python reference passing. Six real bugs surfaced on that
+first run — two retired Docker Hub image tags, a missing `pyarrow` dependency,
+a volume-permission issue, a relative-import bug in how `spark-submit` invokes
+a package module, and the offline embedding backend needing a pre-fitted model
+rather than one streaming batch — all fixed; see `docs/DEMO.md`'s
+troubleshooting table.

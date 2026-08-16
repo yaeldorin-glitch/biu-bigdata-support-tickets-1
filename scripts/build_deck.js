@@ -641,12 +641,12 @@ function arrow(slide, x, y) {
   });
   s.addText(
     "80 unit tests pass and the pipeline ran end to end over all 28,587 rows. The Docker stack, the Spark jobs " +
-    "and the neural backend were not executed in the build environment — documented in the README.",
+    "and the Elasticsearch writes have since been run and verified against the live stack — see docs/DEMO.md.",
     { x: 8.5, y: 5.15, w: 4.0, h: 1.0, fontFace: BODY, fontSize: 10.5, color: SLATE, margin: 0 }
   );
 
   s.addNotes(
-    "Being explicit about what was not executed is worth more marks than pretending otherwise, and it is the " +
+    "Being explicit about what was and was not verified is worth more marks than glossing over it, and it is the " +
     "honest answer if an examiner asks 'did you actually run this end to end on the cluster'."
   );
 }

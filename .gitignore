@@ -36,6 +36,10 @@ htmlcov/
 *.pem
 *.key
 
+# --- node (scripts/build_deck.js) -------------------------------------------
+node_modules/
+package-lock.json
+
 # --- editors / OS ----------------------------------------------------------
 .vscode/
 .idea/
