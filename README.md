@@ -60,6 +60,19 @@ tickets-pipeline --limit 5000
 <details>
 <summary><b>Windows / PowerShell</b></summary>
 
+Easiest route — open PowerShell **inside the project folder** (in File Explorer,
+type `powershell` in the address bar and press Enter) and run:
+
+```powershell
+.\run.ps1
+```
+
+That checks Python, installs the package, warns you if the dataset or Docker
+memory is wrong, then runs the pipeline. Other modes: `.\run.ps1 -Full`,
+`.\run.ps1 -Api`, `.\run.ps1 -Stack`.
+
+Or do it by hand:
+
 ```powershell
 cd C:\path\to\biu-bigdata-support-tickets
 pip install -e .
