@@ -23,12 +23,31 @@ pip install -e .
 
 Check three things:
 
-1. **Docker Desktop is running**, with Settings → Resources → Memory at **8GB or
-   more**. Below that, Elasticsearch is OOM-killed during startup and the whole
-   demo dies at step 2.
+1. **Docker Desktop is running.** On an 8GB machine, always use
+   `docker-compose.slim.yml`, never the default file — every command below
+   assumes it (`-f docker-compose.slim.yml`). The slim file drops Kibana and
+   caps Elasticsearch's heap; the default file assumes 8GB free inside Docker
+   and gets Elasticsearch OOM-killed on startup.
 2. **The full dataset is at `data\raw\tickets.csv`.** Without it everything runs
    on the 300-row sample and the numbers will not match your slides.
-3. **Nothing else is using ports** 9092, 9000, 9001, 9200, 5601, 8080, 8000.
+3. **Nothing else is using ports** 9092, 9000, 9001, 9200, 8080, 8000. (5601 is
+   Kibana, not present in the slim stack.)
+
+**One-time setup: fit the offline embedding model.** The Spark container runs
+with `EMBEDDING_BACKEND=offline` (loading the 471MB neural model into every
+executor does not fit the memory budget), and that backend needs a *fitted*
+model file — it cannot fit itself on a 50-ticket streaming batch. Fit it once
+against a real sample and it is reused on every future run:
+
+```powershell
+EMBEDDING_BACKEND=offline tickets-pipeline --limit 3000
+```
+
+This takes seconds (it is TF-IDF+SVD, not the neural model) and writes
+`output/offline_embedding_model.joblib`, which the Spark container picks up
+automatically via `OFFLINE_EMBEDDING_MODEL` in `docker-compose.slim.yml`.
+Skipping this step fails with `RuntimeError: the offline embedding backend
+needs either a fitted model file or a corpus to fit on`.
 
 Do a full dry run start to finish before recording. The first run is the one
 that finds the problems.
@@ -53,14 +72,15 @@ it is a point in your favour, not an excuse.
 ### 1. Bring up the stack (2 minutes, mostly waiting)
 
 ```powershell
-docker compose up -d
-docker compose ps
+docker compose -f docker-compose.slim.yml up -d
+docker compose -f docker-compose.slim.yml ps
 ```
 
 Talk over the wait. The services are: Kafka (broker), MinIO (object store),
-Elasticsearch (NoSQL + vector index), Kibana (dashboards), Spark (master +
-worker). That is five of the course technologies in one screen — worth pointing
-at explicitly, since "use of course technologies" is 20% of the grade.
+Elasticsearch (NoSQL + vector index), Spark (local mode). That is four of the
+course technologies in one screen — worth pointing at explicitly, since "use of
+course technologies" is 20% of the grade. (The slim stack drops Kibana to fit
+an 8GB machine; the FastAPI `/kpis` endpoint covers the same numbers.)
 
 Wait until Elasticsearch answers:
 
@@ -87,20 +107,26 @@ Two terminals. First the producer:
 tickets-producer --rate 200
 ```
 
-Then the streaming job:
+Then the streaming job. Note the target is `docker/spark/run_module.py`, not
+`stream_job.py` directly: `spark-submit` executes its target file as a bare
+script with no parent package, and `stream_job.py` uses relative imports
+(`from ..config import ...`) that only resolve when Python loads it as part of
+the `tickets` package. The launcher runs it as a real module import instead —
+the same effect as `python -m tickets.spark.stream_job`, which `spark-submit`
+has no flag for:
 
 ```powershell
-docker compose exec spark spark-submit `
+docker compose -f docker-compose.slim.yml exec spark spark-submit `
   --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1,org.apache.hadoop:hadoop-aws:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.262,org.elasticsearch:elasticsearch-spark-30_2.12:8.13.4 `
-  /opt/project/src/tickets/spark/stream_job.py
+  /opt/project/docker/spark/run_module.py tickets.spark.stream_job --trigger-seconds 5
 ```
 
 While it runs, show the data landing in three places:
 
-- **MinIO** → <http://localhost:9001> (`minioadmin` / `minioadmin`) → the `lake`
-  bucket → `bronze/` filling with Parquet, then `silver/`
-- **Elasticsearch** → `curl http://localhost:9200/tickets/_count`
-- **Spark UI** → <http://localhost:4040> → the streaming query, batch by batch
+- **MinIO** — <http://localhost:9001> (`minioadmin` / `minioadmin`) — the `lake`
+  bucket — `bronze/` filling with Parquet, then `silver/`
+- **Elasticsearch** — `curl http://localhost:9200/tickets/_count`
+- **Spark UI** — <http://localhost:4040> — the streaming query, batch by batch
 
 The bronze/silver split is worth one sentence: bronze is raw and immutable, so
 when the enrichment logic changes you replay from there rather than from Kafka,
@@ -108,10 +134,14 @@ whose retention is finite.
 
 ### 4. Batch KPIs (1 minute)
 
+Stop the streaming job first (`Ctrl+C`, or `docker compose -f
+docker-compose.slim.yml exec spark pkill -f SparkSubmit` — it is a persistent
+query and will not exit on its own), then:
+
 ```powershell
-docker compose exec spark spark-submit `
+docker compose -f docker-compose.slim.yml exec spark spark-submit `
   --packages org.apache.hadoop:hadoop-aws:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.262,org.elasticsearch:elasticsearch-spark-30_2.12:8.13.4 `
-  /opt/project/src/tickets/spark/batch_kpis.py
+  /opt/project/docker/spark/run_module.py tickets.spark.batch_kpis
 ```
 
 Point out the line in the log that says verification passed — the Spark
@@ -160,7 +190,7 @@ before you ever see them.
 
 ### 6. Kibana (1 minute)
 
-<http://localhost:5601> → Discover → create a data view on `ticket_kpis`.
+<http://localhost:5601> — Discover — create a data view on `ticket_kpis`.
 
 Show two findings that change a decision:
 
@@ -175,22 +205,30 @@ Show two findings that change a decision:
 ## Shutting down
 
 ```powershell
-docker compose down        # keeps the data
-docker compose down -v     # deletes the volumes too
+docker compose -f docker-compose.slim.yml down        # keeps the data
+docker compose -f docker-compose.slim.yml down -v     # deletes the volumes too
 ```
 
 ---
 
 ## When something breaks
 
+Found and fixed once this stack was actually started for the first time —
+listed here so a repeat is a two-minute fix, not a re-investigation:
+
 | symptom | cause | fix |
 |---|---|---|
-| Elasticsearch exits right after start | Docker memory below 8GB | Settings → Resources → Memory |
+| Elasticsearch exits right after start | Docker memory below 8GB, or using `docker-compose.yml` instead of the slim file | always `-f docker-compose.slim.yml`; Settings → Resources → Memory |
 | Producer connects then times out | wrong bootstrap address | host → `localhost:9092`, container → `kafka:29092` |
 | `spark-submit` hangs on first run | Ivy resolving jars | wait it out once; they are cached afterwards |
+| `bitnami/kafka:3.7` / `bitnami/spark:3.5.1: not found` | Bitnami retired free-tier version tags | already fixed in `docker-compose.slim.yml` / `docker/spark/Dockerfile` → `bitnamilegacy/*` |
+| `FileNotFoundError` in `.ivy2/cache` during Ivy resolve | the `ivy-cache` named volume is created root-owned but the container runs as non-root UID 1001 | one-time: `docker compose -f docker-compose.slim.yml exec -u root spark chown -R 1001:0 /opt/bitnami/spark/.ivy2` |
+| `ImportError: attempted relative import with no known parent package` | `spark-submit` runs its target as a bare script, not a package module | target `docker/spark/run_module.py <module>` instead of the `.py` file directly (see step 3) |
+| `ModuleNotFoundError: No module named 'pyarrow'` | Spark's `mapInPandas` needs Arrow; it was missing from `requirements.txt` | already fixed — `pyarrow` is now a dependency |
+| `RuntimeError: the offline embedding backend needs either a fitted model file or a corpus to fit on` | streaming a batch alone gives the offline backend nothing to fit on | run the one-time `EMBEDDING_BACKEND=offline tickets-pipeline --limit 3000` step above first |
 | kNN query rejected by Elasticsearch | index created by dynamic mapping | delete the index, run step 2, re-stream |
 | `No module named 'tickets'` | not installed, or wrong folder | `pip install -e .`, then use `tickets-pipeline` |
-| Port already in use | leftover containers | `docker compose down` then retry |
+| Port already in use | leftover containers | `docker compose -f docker-compose.slim.yml down` then retry |
 
 **If the stack fails mid-demo**, fall back to step 0 and to
 `OFFLINE_API=1 uvicorn tickets.serving.api:app` — the same API, same endpoints,

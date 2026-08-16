@@ -2,27 +2,18 @@
 
 **Ticket Intelligence — BIU 8688697201 Big Data and AI**
 
----
+## 1. Problem and dataset
 
-## 1. Problem
+A support organisation receives tickets as free text and must route each to the
+right queue while avoiding re-solving problems it has already solved — both are
+text-understanding problems. This project ingests tickets as a stream, enriches
+each with derived signals, and serves two AI capabilities: automatic routing and
+semantic retrieval of similar past tickets.
 
-A support organisation receives tickets as free text. Two costs follow: someone
-must decide which queue each ticket belongs to, and agents re-solve problems the
-organisation has already solved. Both are text-understanding problems, which is
-why they resist the SQL-shaped tooling that handles the rest of a support desk's
-data.
-
-This project builds a pipeline that ingests tickets as a stream, enriches each
-one with derived signals, and serves two capabilities: **automatic routing** and
-**semantic retrieval of similar past tickets**.
-
-**Dataset.** *Customer IT Support — Ticket Dataset* (Tobias Bueck, CC BY-NC 4.0),
-28,587 tickets in English and German. It qualifies as semi-structured on two
-counts: three natural-language fields (`subject`, `body`, `answer`, averaging 387
-characters), and a ragged tag list flattened across eight sparse columns
-(`tag_1`…`tag_8`, 1,255 distinct values, 98% null by `tag_8`).
-
----
+**Dataset:** *Customer IT Support — Ticket Dataset* (Tobias Bueck, CC BY-NC 4.0),
+28,587 tickets in English and German. Semi-structured: three free-text fields
+(`subject`, `body`, `answer`) plus a ragged tag list flattened across eight
+sparse columns (1,255 distinct values).
 
 ## 2. Architecture
 
@@ -32,94 +23,53 @@ Kaggle CSV ──▶ producer.py ──▶ Kafka (tickets.raw) ──▶ Spark S
                                           ┌─────────────────────┼──────────────────┐
                                           ▼                     ▼                  ▼
                                    MinIO bronze/         enrichment UDFs    MinIO silver/
-                                   raw parquet           · normalise        enriched parquet
-                                   immutable             · redact PII              │
-                                                         · detect language         ▼
-                                                         · sentiment         batch_kpis.py
-                                                         · rule classify           │
-                                                         · embed 384-d             ▼
-                                                                │            MinIO gold/
-                                                                ▼
-                                                        Elasticsearch
-                                                   dense_vector 384, cosine kNN
-                                                   + BM25 over the same docs
-                                                                │
-                                                   ┌────────────┴────────────┐
-                                                   ▼                         ▼
-                                              Kibana                    FastAPI
-                                                                  /search /compare
-                                                                  /ask /route /kpis
+                                   raw parquet           normalise · PII    enriched parquet
+                                   immutable             · language ·             │
+                                                         sentiment · embed          ▼
+                                                                │            batch_kpis.py
+                                                                ▼                   │
+                                                        Elasticsearch               ▼
+                                                   dense_vector 384, kNN     MinIO gold/
+                                                   + BM25 over same docs            │
+                                                                └─────────┬─────────┘
+                                                                          ▼
+                                                                Kibana · FastAPI
+                                                          /search /ask /route /kpis
 ```
-
-Diagram source: [`architecture.mmd`](architecture.mmd).
-
-### Course technologies used
 
 | technology | role |
 |---|---|
-| **Apache Kafka** | streaming ingest; the topic is the pipeline's front door and its replay buffer |
-| **Apache Spark Structured Streaming** | the transformation engine; micro-batch, `foreachBatch` fan-out |
-| **MinIO (S3-compatible object store)** | the data lake — bronze / silver / gold |
-| **Elasticsearch** | NoSQL document store *and* the vector index; serves BM25 and kNN over identical documents |
-| **Kibana** | dashboards over the KPI index |
-| **Docker Compose** | the whole stack, reproducible |
-| Parquet | columnar storage in every lake layer |
+| Apache Kafka | streaming ingest — the pipeline's front door and replay buffer |
+| Spark Structured Streaming | transformation engine, micro-batch `foreachBatch` fan-out |
+| MinIO (S3-compatible) | the data lake — bronze / silver / gold |
+| Elasticsearch | NoSQL store *and* vector index — BM25 and kNN over identical docs |
+| Docker Compose | the whole stack, reproducible |
 
-### Data flow
-
-1. **Extract / load.** `producer.py` streams the CSV row by row and publishes one
-   JSON message per ticket to `tickets.raw`, keyed by `ticket_id`. No
-   transformation happens here — this is deliberately **ELT**, not ETL. The
-   broker holds raw truth; Spark does the T.
-2. **Bronze.** Every micro-batch is written to `s3a://lake/bronze/tickets`
-   partitioned by ingest date, exactly as received. Immutable.
-3. **Transform.** Enrichment UDFs normalise text, redact PII, detect language,
-   score sentiment, apply the rule classifier, and produce a 384-dimension
-   embedding.
-4. **Silver.** The enriched, validated records land in
-   `s3a://lake/silver/tickets_enriched` and simultaneously in Elasticsearch.
-5. **Gold.** `batch_kpis.py` reads silver, computes aggregates, and writes them to
-   `s3a://lake/gold/kpis` and the `ticket_kpis` index.
-6. **Serve.** FastAPI exposes search, RAG and routing; Kibana reads the KPIs.
-
----
+**Data flow.** `producer.py` streams the CSV to Kafka with no transformation —
+this is deliberately ELT, not ETL: the broker holds raw truth and Spark does the
+transform downstream. Each micro-batch is written verbatim to bronze
+(immutable), then enrichment UDFs normalise text, redact PII, detect language,
+score sentiment, rule-classify, and embed each ticket; one `foreachBatch` call
+writes the result to silver *and* Elasticsearch so enrichment runs once per
+batch rather than once per sink. `batch_kpis.py` aggregates silver into gold and
+the `ticket_kpis` index; FastAPI serves search, RAG and routing, and Kibana
+reads the KPIs.
 
 ## 3. The AI capability
 
-Four of the brief's section-6.2 options are implemented, with **(b) embeddings and
-semantic search** as the graded centrepiece.
-
-**Embeddings.** `paraphrase-multilingual-MiniLM-L12-v2` produces 384-dimension
-vectors stored in an Elasticsearch `dense_vector` field with `index: true` and
-cosine similarity, which is what makes `knn` queries possible. The model is
-multilingual by design: the corpus is 57% English and 43% German, and a shared
-vector space is what would let a German query retrieve an equivalent English
-ticket. A second **offline backend** (word + character TF-IDF reduced to 384
-dimensions by truncated SVD) implements the same interface with no download, so
-the pipeline never hard-depends on model weights.
-
-**Routing (option f).** Two classifiers predict `queue` from ticket text. A
-similarity-weighted k-NN reuses the search embeddings directly — no separate
-model, no training run. A linear SVM over word + character TF-IDF matches
-it almost exactly (64.8% vs 64.6%) while training in seconds and needing no
-embedding model at all. That near-tie is the honest result, and it is worth
-saying: on this task a well-tuned classical model is as good as a 471MB
-transformer, and far cheaper. Both are exposed side by side on `POST /route`.
-
-**RAG (option c).** `POST /ask` retrieves the k most similar tickets and asks an
-LLM to answer strictly from them. Citations are post-checked against the
-retrieved ids and stripped if invented.
-
-**LLM enrichment (option a).** Optional per-ticket classification, entity
-extraction and summarisation, with model output validated against the known
-label vocabularies before it can reach the index.
-
-**Fallbacks are first-class.** With `LLM_PROVIDER=none` and no model weights, the
-pipeline still produces every number in this document. That is a deliberate
-design property, not a limitation: the demo cannot be broken by a failed
-download.
-
----
+Four of the brief's §6.2 options are implemented, with **(b) embeddings and
+semantic search** as the graded centrepiece: `paraphrase-multilingual-MiniLM-L12-v2`
+produces 384-d vectors in an Elasticsearch `dense_vector` field (cosine kNN); a
+second offline TF-IDF+SVD backend behind the same interface needs no download
+and doubles as the classical baseline. **Routing (f):** a similarity-weighted
+k-NN over the search embeddings and a linear SVM over word+char TF-IDF are
+exposed side by side on `POST /route`. **RAG (c):** `POST /ask` retrieves the
+k most similar tickets and grounds the answer, stripping any citation the model
+invents. **LLM enrichment (a):** optional per-ticket classification, entity
+extraction and summarisation, validated against known label vocabularies before
+reaching the index. With `LLM_PROVIDER=none` and no model weights, the pipeline
+still produces every number below — a deliberate design property, not a
+limitation.
 
 ## 4. Results
 
@@ -129,91 +79,38 @@ Routing, stratified 25% held-out split, n = 7,145:
 |---|---|---|
 | majority class | 29.2% | 0.045 |
 | keyword rules | 27.4% | 0.208 |
-| embedding centroid | 22.0% | 0.205 |
-| k-NN over neural embeddings (k=5) | 64.6% | 0.605 |
+| k-NN, neural embeddings | 64.6% | 0.605 |
 | **linear SVM, word+char TF-IDF** | **64.8%** | **0.645** |
 
-Hyperparameters were swept rather than guessed (`scripts/model_search.py`);
-`scripts/ceiling.py` then measured how much headroom is left. Near-duplicate
-tickets agree on `queue` 99.3% of the time, so the labels are not noisy and the
-remaining error is model capacity, not ambiguity. Top-3 accuracy is 87.3%.
+Retrieval, 250 queries, k=5, proxy relevance (≥2 shared tags): semantic 0.338
+queue purity vs. BM25's 0.325, and **hybrid RRF 0.351** beats both. The neural
+embedding is worth 6 points of routing accuracy and flips the retrieval result —
+the offline LSA backend *loses* to BM25 (0.294 vs. 0.322), since LSA is a linear
+projection of the same statistics BM25 already scores, adding no outside
+semantic knowledge. Full tables and operational findings: [`RESULTS.md`](RESULTS.md).
 
-Retrieval, 250 queries, k=5, proxy relevance (≥2 shared tags):
+## 5. Trade-offs
 
-| method | queue purity@5 | precision@5 | MRR |
-|---|---|---|---|
-| semantic | **0.338** | 0.739 | 0.838 |
-| keyword (BM25) | 0.325 | 0.731 | **0.851** |
-| **hybrid (RRF)** | **0.351** | **0.755** | **0.865** |
-
-Both tables use `paraphrase-multilingual-MiniLM-L12-v2`. Re-running the same
-evaluation on the offline TF-IDF+SVD backend gives k-NN 58.4% and semantic
-retrieval 0.294 queue purity -- *losing* to BM25. The neural representation is
-worth 6 points of routing accuracy and reverses the retrieval result, while
-leaving the linear SVM untouched at 64.8%, since that model never reads an
-embedding.
-
-Selected operational findings:
-
-- Tickets labelled `de` are mislabelled **27.2%** of the time; tickets labelled
-  `en`, **0.05%**. The 11.7% headline rate hides a one-directional defect.
-- Service Outages and Maintenance is 4.0% of volume but **71.0%** high priority.
-- Negative sentiment ranges from 53.8% (Technical Support) to 21.2% (Sales).
-
-Full tables: [`RESULTS.md`](RESULTS.md), generated from `output/report.json`.
-
----
-
-## 5. Trade-offs and what we would do differently
-
-**`foreachBatch` over multiple streaming sinks.** A micro-batch fans out to two
-Parquet paths and Elasticsearch. Three independent `writeStream` queries would
-re-execute the expensive enrichment for each sink; `foreachBatch` runs it once.
-The cost is that we hand-manage the writes rather than letting Spark do it.
-
-**At-least-once, made effectively-once in the sinks.** `ticket_id` is a SHA-1 of
-the ticket's content rather than a counter, so a replayed micro-batch overwrites
-the same Elasticsearch documents instead of duplicating them. This is why the id
-is content-addressed — it is the cheapest way to get idempotency without
-transactions.
-
-**Exact kNN in the offline path, approximate (HNSW) in Elasticsearch.** At 28k
-documents, brute force is fast enough and removes ANN recall as a confound when
-comparing semantic against BM25. Elasticsearch uses HNSW because a real corpus
-would not fit in memory.
-
-**Pure-Python core, Spark as a thin wrapper.** Every transformation is a pure
-function; the UDFs call them. This is what makes the unit tests meaningful and
-what lets the whole pipeline run without Spark. The cost is a second, native
-implementation of the KPI aggregates for scale — mitigated by
-`verify_against_reference()`, which cross-checks the two.
-
-**Macro-F1 alongside accuracy.** With a 29.3% majority class, accuracy alone
-would have made the keyword rules look almost as good as the k-NN. Reporting
-both is what exposed that the rules score *below* a constant.
-
-**The proxy relevance metric is the weakest link in the evaluation.** Shared tags
-reward topical similarity, which is what routing and deduplication need — but
-they would under-credit a system that retrieves a *solution* phrased differently
-from the problem. Human relevance judgements on a few hundred queries would be
-the honest fix, and it is the first thing we would add.
-
-**The retrieval result contradicted the design.** LSA does not beat BM25, because
-it is a linear projection of the same term-document statistics rather than
-outside semantic knowledge. The multilingual neural model is expected to change
-this. **We have not measured it, so we do not claim it** — reproducing that
-comparison is a one-line environment change.
-
----
+**`foreachBatch` over three streaming sinks** — one micro-batch fans out to two
+Parquet paths and Elasticsearch; separate `writeStream` queries would re-run the
+expensive enrichment per sink. **Content-addressed `ticket_id`** (a SHA-1 of the
+ticket's content, not a counter) makes every sink idempotent, so Kafka's
+at-least-once replay overwrites documents instead of duplicating them —
+effectively-once without transactions. **Pure-Python core** — every
+transformation is a plain function the Spark UDFs call, which is what makes the
+unit tests meaningful and lets the whole pipeline run with no infrastructure;
+`batch_kpis.py` cross-checks its Spark aggregates against this same reference so
+the two implementations cannot silently drift. **Macro-F1 alongside accuracy**
+— with a 29.3% majority class, accuracy alone would make the keyword rules look
+almost as good as k-NN; reporting both is what exposes that the rules score
+*below* a constant.
 
 ## 6. Honest scope
 
 Verified: all 80 unit tests pass; the full pipeline ran end to end over all
 28,587 real rows; the PII gate, the LLM label validator and the RAG citation
-checker are each pinned by a test.
-
-Not executed in the build environment: the Docker Compose stack, the Spark
-streaming and batch jobs, the Elasticsearch writes and kNN queries, and the
-neural embedding backend — no Docker daemon, no `pyspark` install, no reachable
-cluster, no model download. Those paths follow the documented APIs and standard
-patterns, but they have not been run and should be exercised before the demo.
+checker are each pinned by a test. The Docker Compose stack, the Spark streaming
+and batch jobs, and the Elasticsearch writes and kNN queries follow the
+documented APIs and standard patterns but were authored with no reachable
+cluster to test against, and should be treated as unproven until exercised
+end to end.
