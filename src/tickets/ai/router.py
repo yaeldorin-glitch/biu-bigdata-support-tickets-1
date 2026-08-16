@@ -37,12 +37,21 @@ class RoutingPrediction:
 class LinearRouter:
     """Linear SVM over word + character TF-IDF. The strongest deployable router.
 
-    Measured on the full corpus this beats similarity-weighted k-NN by ~4 points
-    of accuracy and ~0.09 macro-F1, trains in seconds, and needs no embedding
-    model at all -- see ``scripts/experiments.py``.
+    Measured on the full corpus this beats similarity-weighted k-NN by ~7 points
+    of accuracy and ~0.13 macro-F1, trains in seconds, and needs no embedding
+    model at all. ``scripts/model_search.py`` is the sweep behind every constant
+    below -- none of them is a guess.
 
-    Two choices worth defending:
+    Four choices worth defending:
 
+    ``C=5.0``
+        Swept over {0.1 ... 10}: 52.5% at C=0.1, 61.7% at C=1, 63.2% at C=5,
+        then flat. Support text is high-dimensional and close to linearly
+        separable, so heavy regularisation only destroys signal.
+    word 1-3 grams with ``min_df=1``
+        Trigrams added 1.8 points and keeping singleton terms another 0.5.
+        Support tickets carry rare but highly diagnostic phrases -- product
+        names, error strings -- that ``min_df=2`` throws away.
     ``class_weight="balanced"``
         The queue distribution spans 29.3% to 1.4%. Without reweighting the
         model buys accuracy on Technical Support by abandoning the small queues,
@@ -53,7 +62,7 @@ class LinearRouter:
         which word n-grams alone tokenise badly.
     """
 
-    def __init__(self, C: float = 1.0, balanced: bool = True) -> None:
+    def __init__(self, C: float = 5.0, balanced: bool = True) -> None:
         self.C = C
         self.balanced = balanced
         self._pipeline = None
@@ -70,8 +79,8 @@ class LinearRouter:
 
         features = FeatureUnion(
             [
-                ("word", TfidfVectorizer(ngram_range=(1, 2), min_df=2, max_df=0.6,
-                                         sublinear_tf=True, max_features=150_000)),
+                ("word", TfidfVectorizer(ngram_range=(1, 3), min_df=1, max_df=0.6,
+                                         sublinear_tf=True, max_features=300_000)),
                 ("char", TfidfVectorizer(analyzer="char_wb", ngram_range=(3, 5), min_df=3,
                                          sublinear_tf=True, max_features=150_000)),
             ]

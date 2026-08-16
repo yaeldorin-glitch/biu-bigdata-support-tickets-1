@@ -98,9 +98,12 @@ ticket. A second **offline backend** (word + character TF-IDF reduced to 384
 dimensions by truncated SVD) implements the same interface with no download, so
 the pipeline never hard-depends on model weights.
 
-**Routing (option f).** The same vectors feed a similarity-weighted k-NN
-classifier that predicts `queue`. No separate model, no training run — the
-cheapest possible route from "we have embeddings" to "we have business value".
+**Routing (option f).** Two classifiers predict `queue` from ticket text. A
+similarity-weighted k-NN reuses the search embeddings directly — no separate
+model, no training run. A linear SVM over word + character TF-IDF then beats it
+by 6.4 points (64.8% vs 58.4%) and trains in seconds without any embedding model,
+which is the honest result: for this task, classical sparse features outperform
+the dense ones. Both are exposed side by side on `POST /route`.
 
 **RAG (option c).** `POST /ask` retrieves the k most similar tickets and asks an
 LLM to answer strictly from them. Citations are post-checked against the
@@ -126,7 +129,13 @@ Routing, stratified 25% held-out split, n = 7,145:
 | majority class | 29.2% | 0.045 |
 | keyword rules | 27.4% | 0.208 |
 | embedding centroid | 28.4% | 0.252 |
-| **embedding k-NN (k=15)** | **48.4%** | **0.384** |
+| embedding k-NN (k=5) | 58.4% | 0.529 |
+| **linear SVM, word+char TF-IDF** | **64.8%** | **0.645** |
+
+Hyperparameters were swept rather than guessed (`scripts/model_search.py`);
+`scripts/ceiling.py` then measured how much headroom is left. Near-duplicate
+tickets agree on `queue` 99.3% of the time, so the labels are not noisy and the
+remaining error is model capacity, not ambiguity. Top-3 accuracy is 87.3%.
 
 Retrieval, 250 queries, k=5, proxy relevance (≥2 shared tags):
 

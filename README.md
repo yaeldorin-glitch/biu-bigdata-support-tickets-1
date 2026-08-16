@@ -24,7 +24,7 @@ held-out split (7,145 tickets):
 | keyword rules (hand-written) | 27.4% | 0.208 |
 | nearest class centroid (embeddings) | 28.4% | 0.252 |
 | k-NN over embeddings (k=5) | 58.4% | 0.529 |
-| **linear SVM, word+char TF-IDF** | **60.6%** | **0.604** |
+| **linear SVM, word+char TF-IDF** | **64.8%** | **0.645** |
 
 Two things worth saying out loud, because they are the interesting part:
 
@@ -39,9 +39,10 @@ Two things worth saying out loud, because they are the interesting part:
   toward the majority queue. Ten lines of hyperparameter sweep bought more than
   any architectural change.
 
-Full numbers in [`docs/RESULTS.md`](docs/RESULTS.md) and the improvement sweep in
-[`docs/CEILING.md`](docs/CEILING.md) — both generated from the pipeline's own
-output, not typed by hand.
+Every figure here is generated from the pipeline's own output rather than typed
+by hand. See [`docs/RESULTS.md`](docs/RESULTS.md) for the full tables,
+[`docs/CEILING.md`](docs/CEILING.md) for how far accuracy can actually go and why,
+and [`docs/DEMO.md`](docs/DEMO.md) for the demo runbook.
 
 ---
 
