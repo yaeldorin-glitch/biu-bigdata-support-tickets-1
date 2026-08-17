@@ -1,6 +1,6 @@
 # Results
 
-_Generated from `output/report.json`. Embedding backend: **sentence-transformers:paraphrase-multilingual-MiniLM-L12-v2** (dim 384). Corpus: **28,587** tickets._
+_Generated from `output/report.json`. Embedding backend: **sentence-transformers:sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2** (dim 384). Corpus: **28,587** tickets._
 
 ## Corpus
 
@@ -26,9 +26,9 @@ _Generated from `output/report.json`. Embedding backend: **sentence-transformers
 
 | method | queue purity@k | precision@k | MRR | queries | k |
 |---|---|---|---|---|---|
-| `semantic` | 0.338 | 0.739 | 0.838 | 250 | 5 |
-| `keyword` | 0.325 | 0.731 | 0.851 | 250 | 5 |
-| `hybrid` | 0.351 | 0.755 | 0.865 | 250 | 5 |
+| `semantic` | 0.346 | 0.744 | 0.835 | 250 | 5 |
+| `keyword` | 0.322 | 0.728 | 0.859 | 250 | 5 |
+| `hybrid` | 0.352 | 0.758 | 0.876 | 250 | 5 |
 
 _Relevance is a proxy: a result counts as relevant if it shares at least two tags with the query ticket. This rewards topical similarity, which is what routing and deduplication need. Read the numbers comparatively, not absolutely._
 
@@ -41,6 +41,20 @@ _Relevance is a proxy: a result counts as relevant if it shares at least two tag
 | `Server ist ausgefallen` | de | 1 | 0 |
 | `cannot reset my password` | en | 0 | 0 |
 | `data breach security incident` | en | 0 | 0 |
+
+Read alone, this looks like the multilingual embedding buys nothing across languages. It does not: with 12,249 German tickets in the corpus, a German query's unrestricted top-5 is dominated by German tickets on volume alone, before cross-lingual ability ever gets a chance to show up. The candidate pool, not the model, is what this table measures.
+
+
+### Cross-lingual retrieval, language-filtered
+
+| method | queue purity@k | precision@k | MRR | queries | k |
+|---|---|---|---|---|---|
+| `semantic` | 0.313 | 0.685 | 0.787 | 250 | 5 |
+| `keyword` | 0.266 | 0.660 | 0.768 | 250 | 5 |
+| `hybrid` | 0.300 | 0.698 | 0.799 | 250 | 5 |
+
+Same shared-tag proxy as the main retrieval table, but the candidate pool is restricted to the *other* language before ranking -- the fix `/search?q=...&language=en` gives a live user. Forced to match across the language boundary, semantic retrieval still beats keyword search, which is the fair test the unrestricted probe above could never pass.
+
 
 ## Negative-sentiment rate by queue
 
@@ -77,9 +91,10 @@ _Relevance is a proxy: a result counts as relevant if it shares at least two tag
 | stage | seconds |
 |---|---|
 | load | 1.0 |
-| enrich | 8.3 |
-| embed | 198.9 |
-| index | 15.4 |
-| eval_routing | 162.1 |
-| eval_retrieval | 63.7 |
-| kpis | 136.9 |
+| enrich | 9.9 |
+| embed | 1535.0 |
+| index | 28.1 |
+| eval_routing | 241.6 |
+| eval_retrieval | 23.1 |
+| eval_cross_lingual_retrieval | 46.8 |
+| kpis | 31.3 |

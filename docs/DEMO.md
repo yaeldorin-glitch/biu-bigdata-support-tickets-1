@@ -30,8 +30,8 @@ Check three things:
    and gets Elasticsearch OOM-killed on startup.
 2. **The full dataset is at `data\raw\tickets.csv`.** Without it everything runs
    on the 300-row sample and the numbers will not match your slides.
-3. **Nothing else is using ports** 9092, 9000, 9001, 9200, 8080, 8000. (5601 is
-   Kibana, not present in the slim stack.)
+3. **Nothing else is using ports** 9092, 9000, 9001, 9200, 4040, 8000. (4040 is
+   the Spark UI; 5601 would be Kibana, but it is not present in the slim stack.)
 
 **One-time setup: fit the offline embedding model.** The Spark container runs
 with `EMBEDDING_BACKEND=offline` (loading the 471MB neural model into every
@@ -188,9 +188,15 @@ Point out that with no API key configured it answers extractively from the
 retrieved tickets rather than failing — and that invented citations are stripped
 before you ever see them.
 
-### 6. Kibana (1 minute)
+### 6. KPIs (1 minute)
 
-<http://localhost:5601> — Discover — create a data view on `ticket_kpis`.
+```
+GET /kpis
+```
+
+The slim stack drops Kibana (see "Before you record" above), so this is the
+real demo path for the aggregates, not a fallback — it reads the same
+`ticket_kpis` data straight from Elasticsearch (or `output/kpis.json` offline).
 
 Show two findings that change a decision:
 
@@ -251,11 +257,15 @@ the batch replays. Every sink is idempotent because `ticket_id` is a SHA-1 of th
 ticket's content — a replay overwrites the same Elasticsearch documents instead
 of duplicating them. Effectively-once in the sinks, without needing transactions.
 
-**"Why is semantic search not beating keyword search?"** Because these numbers
-come from the offline TF-IDF+SVD backend, which is LSA — a linear projection of
-the same statistics BM25 already scores. It compresses lexical information and
-adds no outside semantic knowledge. The multilingual neural model is expected to
-change that; we have not measured it, so we do not claim it.
+**"Why is semantic search not beating keyword search?"** (if asked about the
+offline-backend numbers in `docs/CEILING.md`) Because those come from the
+offline TF-IDF+SVD backend, which is LSA — a linear projection of the same
+statistics BM25 already scores. It compresses lexical information and adds no
+outside semantic knowledge. With the neural model — what the live demo and
+`docs/RESULTS.md` actually use — semantic wins: 0.744 vs. 0.728 precision@5,
+and the gap widens to 0.685 vs. 0.660 when the query and its match are forced
+to be in different languages, where BM25 cannot share a single word with a
+German query against an English ticket.
 
 **"Why is accuracy only 65%?"** Because four of the ten queues — Technical,
 Product, IT Support and Customer Service — overlap semantically, and every large

@@ -298,6 +298,107 @@ def evaluate_retrieval(
     return results
 
 
+@dataclass
+class CrossLingualRetrievalResult:
+    method: str
+    queue_purity_at_k: float
+    precision_at_k: float
+    mrr: float
+    n_queries: int
+    k: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "method": self.method,
+            "queue_purity_at_k": round(self.queue_purity_at_k, 4),
+            "precision_at_k": round(self.precision_at_k, 4),
+            "mrr": round(self.mrr, 4),
+            "n_queries": self.n_queries,
+            "k": self.k,
+        }
+
+
+def evaluate_cross_lingual_retrieval(
+    tickets: Sequence[Any],
+    index: InMemoryIndex,
+    n_queries: int = 100,
+    k: int = 5,
+    seed: int = 42,
+    min_shared_tags: int = 2,
+) -> list[CrossLingualRetrievalResult]:
+    """``evaluate_retrieval``'s exact methodology, with the candidate pool
+    restricted to the *other* language before ranking.
+
+    ``evaluate_retrieval`` and ``cross_lingual_probe`` both search the full
+    mixed-language pool. With 12,249 German tickets in the corpus, a German
+    query's top-k there is dominated by German tickets purely on volume --
+    that crowding, not the embedding, is why the unrestricted cross-language
+    hit count reads ~0 (see ``cross_lingual_probe``). Filtering the candidate
+    set by language before ranking is the fix the docs describe as untried;
+    this is that fix, scored with the identical shared-tag proxy so the
+    numbers sit directly next to the main retrieval table.
+    """
+    rows = [t if isinstance(t, dict) else t.to_dict() for t in tickets]
+    candidates = [
+        r
+        for r in rows
+        if (r.get("subject") or "").strip()
+        and len(r.get("tags") or []) >= 2
+        and r.get("language") in ("en", "de")
+    ]
+    if not candidates:
+        raise ValueError("no tickets with a subject, >=2 tags, and a known language to use as queries")
+
+    rng = random.Random(seed)
+    queries = rng.sample(candidates, min(n_queries, len(candidates)))
+
+    methods = {"semantic": index.semantic, "keyword": index.keyword, "hybrid": index.hybrid}
+    results: list[CrossLingualRetrievalResult] = []
+    by_id = {r.get("ticket_id"): r for r in rows}
+
+    for name, retrieve in methods.items():
+        purity: list[float] = []
+        precision: list[float] = []
+        reciprocal: list[float] = []
+
+        for query_row in queries:
+            query_text = query_row["subject"]
+            query_tags = set(query_row.get("tags") or [])
+            query_id = query_row.get("ticket_id")
+            other_language = "en" if query_row["language"] == "de" else "de"
+
+            hits = [
+                h
+                for h in retrieve(query_text, k=k + 1, language=other_language)
+                if h.ticket_id != query_id
+            ][:k]
+            if not hits:
+                continue
+
+            relevant_flags = []
+            for hit in hits:
+                hit_row = by_id.get(hit.ticket_id, {})
+                shared = len(query_tags & set(hit_row.get("tags") or []))
+                relevant_flags.append(1 if shared >= min_shared_tags else 0)
+
+            purity.append(sum(1 for h in hits if h.queue == query_row.get("queue")) / len(hits))
+            precision.append(sum(relevant_flags) / len(relevant_flags))
+            first = next((i for i, flag in enumerate(relevant_flags, start=1) if flag), None)
+            reciprocal.append(1.0 / first if first else 0.0)
+
+        results.append(
+            CrossLingualRetrievalResult(
+                method=name,
+                queue_purity_at_k=float(np.mean(purity)) if purity else 0.0,
+                precision_at_k=float(np.mean(precision)) if precision else 0.0,
+                mrr=float(np.mean(reciprocal)) if reciprocal else 0.0,
+                n_queries=len(purity),
+                k=k,
+            )
+        )
+    return results
+
+
 def cross_lingual_probe(index: InMemoryIndex, queries: Sequence[tuple[str, str]], k: int = 5) -> list[dict[str, Any]]:
     """Show what a multilingual embedding buys over keyword matching.
 

@@ -261,6 +261,8 @@ def route(request: RouteRequest) -> dict[str, Any]:
             "runner_up": linear.neighbours[1:3],
         }
 
+    from ..ai.router import suggestion_count
+
     if state.router is not None:
         vector = state.backend.encode([text])[0]
         prediction = state.router.predict_one(vector)
@@ -268,6 +270,12 @@ def route(request: RouteRequest) -> dict[str, Any]:
             "queue": prediction.label,
             "confidence": prediction.confidence,
             "nearest_neighbours": prediction.neighbours,
+            # More candidates only when the model is unsure -- see
+            # suggestion_count's docstring for the measured basis. Always at
+            # least the winner, so this never contradicts `queue` above.
+            "suggestions": prediction.queue_ranking[: suggestion_count(prediction.confidence)] or [
+                (prediction.label, prediction.confidence)
+            ],
         }
     elif state.index is not None:
         # Elasticsearch mode: vote over the queues of the nearest documents.
@@ -276,11 +284,14 @@ def route(request: RouteRequest) -> dict[str, Any]:
         hits = state.index.semantic(text, k=request.k)
         votes = Counter(h.queue for h in hits if h.queue)
         if votes:
-            label, count = votes.most_common(1)[0]
+            total = sum(votes.values())
+            ranking = [(label, round(count / total, 4)) for label, count in votes.most_common()]
+            label, confidence = ranking[0]
             response["knn"] = {
                 "queue": label,
-                "confidence": round(count / sum(votes.values()), 4),
+                "confidence": confidence,
                 "nearest_neighbours": [(h.queue, round(h.score, 4)) for h in hits[:5]],
+                "suggestions": ranking[: suggestion_count(confidence)],
             }
 
     return response

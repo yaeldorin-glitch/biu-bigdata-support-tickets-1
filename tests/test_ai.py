@@ -12,7 +12,7 @@ import pytest
 from tickets.ai.evaluate import accuracy, evaluate_retrieval, evaluate_routing, macro_f1
 from tickets.ai.llm import Enrichment, NullProvider, _extract_json, enrich_with_llm
 from tickets.ai.rag import _strip_ungrounded_citations, answer_question
-from tickets.ai.router import CentroidRouter, KnnRouter
+from tickets.ai.router import CentroidRouter, KnnRouter, suggestion_count
 from tickets.ai.search import BM25, InMemoryIndex
 from tickets.core.embeddings import OfflineTfidfSvdBackend, cosine_similarity
 from tickets.core.enrich import attach_embeddings, enrich_ticket
@@ -201,6 +201,28 @@ def test_router_rejects_mismatched_input_lengths():
 def test_predict_before_fit_raises():
     with pytest.raises(RuntimeError, match="fit"):
         KnnRouter().predict_one(np.zeros(4, dtype=np.float32))
+
+
+def test_knn_router_queue_ranking_sums_to_one_and_matches_winner(embedded):
+    matrix = np.asarray([t.embedding for t in embedded], dtype=np.float32)
+    labels = [t.queue for t in embedded]
+    router = KnnRouter(k=5).fit(matrix, labels)
+    prediction = router.predict_one(matrix[0])
+
+    assert prediction.queue_ranking[0][0] == prediction.label
+    assert prediction.queue_ranking[0][1] == prediction.confidence
+    assert pytest.approx(sum(share for _, share in prediction.queue_ranking), abs=1e-6) == 1.0
+    # Sorted descending by share -- the whole point is a usable shortlist.
+    shares = [share for _, share in prediction.queue_ranking]
+    assert shares == sorted(shares, reverse=True)
+
+
+@pytest.mark.parametrize(
+    "confidence,expected",
+    [(0.9, 1), (0.5, 1), (0.49, 2), (0.3, 2), (0.29, 3), (0.0, 3)],
+)
+def test_suggestion_count_widens_only_when_unsure(confidence, expected):
+    assert suggestion_count(confidence) == expected
 
 
 # --------------------------------------------------------------------------- #

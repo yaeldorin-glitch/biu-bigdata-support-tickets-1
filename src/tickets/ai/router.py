@@ -21,7 +21,7 @@ Two variants, both fitted on the labelled portion of the corpus:
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Sequence
 
 import numpy as np
@@ -32,6 +32,27 @@ class RoutingPrediction:
     label: str
     confidence: float
     neighbours: list[tuple[str, float]]
+    # Every candidate queue that received a vote, sorted by share, winner
+    # first. Empty for routers that do not aggregate by queue (LinearRouter
+    # exposes the equivalent through `neighbours` instead).
+    queue_ranking: list[tuple[str, float]] = field(default_factory=list)
+
+
+def suggestion_count(confidence: float) -> int:
+    """How many ranked queues to surface, given the winner's confidence.
+
+    Grounded in the measured abstention table (docs/CEILING.md): accuracy on
+    the confidence>=0.5 slice is 81.4%, on the 0.3-0.5 slice it drops toward
+    the 60.6% unconditional accuracy. Rather than abstaining below a threshold
+    (send to a human, per CEILING.md option b) or always showing three options
+    (per option a), this shows one when the model is trustworthy and widens
+    the shortlist only when it is not -- the same evidence, spent differently.
+    """
+    if confidence >= 0.5:
+        return 1
+    if confidence >= 0.3:
+        return 2
+    return 3
 
 
 class LinearRouter:
@@ -180,7 +201,9 @@ class KnnRouter:
 
         best = max(votes, key=lambda label: votes[label])
         neighbours = [(self._labels[i], round(float(similarities[i]), 4)) for i in top[:5]]
-        return RoutingPrediction(best, round(votes[best] / total, 4), neighbours)
+        ranking = sorted(votes.items(), key=lambda kv: -kv[1])
+        queue_ranking = [(label, round(share / total, 4)) for label, share in ranking]
+        return RoutingPrediction(best, round(votes[best] / total, 4), neighbours, queue_ranking)
 
     def predict(self, embeddings: np.ndarray) -> list[RoutingPrediction]:
         """Batched prediction.
@@ -217,7 +240,9 @@ class KnnRouter:
 
             best = max(votes, key=lambda label: votes[label])
             neighbours = [(str(labels[i]), round(float(row[i]), 4)) for i in order[:5]]
-            out.append(RoutingPrediction(best, round(votes[best] / total, 4), neighbours))
+            ranking = sorted(votes.items(), key=lambda kv: -kv[1])
+            queue_ranking = [(label, round(share / total, 4)) for label, share in ranking]
+            out.append(RoutingPrediction(best, round(votes[best] / total, 4), neighbours, queue_ranking))
         return out
 
 

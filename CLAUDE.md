@@ -53,7 +53,7 @@ These constraints are load-bearing. Ignoring them wastes hours.
   neural backend** (`sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`,
   471MB, now cached). Every figure in `README.md`, `docs/RESULTS.md` and
   `docs/presentation.pptx` comes from that run.
-- 80 unit tests pass (`python -m pytest tests/`).
+- 87 unit tests pass (`python -m pytest tests/`).
 - The repo is published at `github.com/yaeldorin-glitch/biu-bigdata-support-tickets-1` (public).
 - **The Docker stack has been started and verified end to end**, for the first
   time, against `docker-compose.slim.yml`: 50 real tickets sent through Kafka →
@@ -146,11 +146,21 @@ is deliberately written to record what was *not* verified. Preserve that.
 - `docs/CEILING.md` records experiments that **failed** — ensembles, trees,
   per-language models, a two-stage hierarchy. Those negative results are worth
   marks. Do not delete them.
-- The cross-lingual probe currently returns ~0 and the README explains why the
-  *probe* is at fault, not the model: with 12,249 German tickets, a German query
-  finds excellent German matches and no English ticket reaches the top 5. Fixing
-  it means filtering the candidate set by language (`/search?q=...&language=en`).
-  This is a known, documented gap — a good first improvement if there is time.
+- The unrestricted cross-lingual probe returns ~0 on the full corpus, and that
+  is a property of the *probe*, not the model: with 12,249 German tickets, a
+  German query's unrestricted top-5 is dominated by German tickets on volume
+  alone, before cross-lingual ability gets a chance to show up. This gap is no
+  longer just documented — it is fixed and measured.
+  `evaluate_cross_lingual_retrieval` (`src/tickets/ai/evaluate.py`) restricts
+  the candidate pool to the *other* language before ranking (the same fix
+  `/search?q=...&language=en` gives a live user), then scores it with the
+  identical shared-tag proxy as the main retrieval table. On the full
+  28,587-ticket corpus, 250 queries: semantic scores 0.685 precision@5
+  cross-lingually vs. keyword's 0.660 — a *wider* gap (2.5 points) than the
+  1.6-point gap in same-pool retrieval, because BM25 cannot match German query
+  terms against English ticket text at all. (An earlier run on a 5,000-ticket
+  sample showed an 11.5-point gap — real direction, overstated by sample size.)
+  See `docs/RESULTS.md`'s "Cross-lingual retrieval, language-filtered" section.
 
 ---
 
@@ -170,9 +180,9 @@ Retrieval, 250 queries, k=5, proxy relevance (≥2 shared tags):
 
 | method | queue purity@5 | precision@5 | MRR |
 |---|---|---|---|
-| semantic | 0.338 | 0.739 | 0.838 |
-| keyword (BM25) | 0.325 | 0.731 | 0.851 |
-| **hybrid (RRF)** | **0.351** | **0.755** | **0.865** |
+| semantic | 0.346 | 0.744 | 0.835 |
+| keyword (BM25) | 0.322 | 0.728 | 0.859 |
+| **hybrid (RRF)** | **0.352** | **0.758** | **0.876** |
 
 Operational findings: German-labelled tickets are mislabelled **27.2%** of the
 time vs **0.05%** for English ones; Service Outages is 4.0% of volume but

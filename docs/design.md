@@ -52,8 +52,10 @@ transform downstream. Each micro-batch is written verbatim to bronze
 score sentiment, rule-classify, and embed each ticket; one `foreachBatch` call
 writes the result to silver *and* Elasticsearch so enrichment runs once per
 batch rather than once per sink. `batch_kpis.py` aggregates silver into gold and
-the `ticket_kpis` index; FastAPI serves search, RAG and routing, and Kibana
-reads the KPIs.
+the `ticket_kpis` index; FastAPI serves search, RAG, routing and the KPIs
+directly (`/kpis`). The full compose file adds Kibana as a dashboard over the
+same index; the memory-constrained slim file that was actually run and
+verified (section 6) drops it and serves KPIs through the API instead.
 
 ## 3. The AI capability
 
@@ -82,8 +84,8 @@ Routing, stratified 25% held-out split, n = 7,145:
 | k-NN, neural embeddings | 64.6% | 0.605 |
 | **linear SVM, word+char TF-IDF** | **64.8%** | **0.645** |
 
-Retrieval, 250 queries, k=5, proxy relevance (≥2 shared tags): semantic 0.338
-queue purity vs. BM25's 0.325, and **hybrid RRF 0.351** beats both. The neural
+Retrieval, 250 queries, k=5, proxy relevance (≥2 shared tags): semantic 0.346
+queue purity vs. BM25's 0.322, and **hybrid RRF 0.352** beats both. The neural
 embedding is worth 6 points of routing accuracy and flips the retrieval result —
 the offline LSA backend *loses* to BM25 (0.294 vs. 0.322), since LSA is a linear
 projection of the same statistics BM25 already scores, adding no outside
@@ -107,7 +109,7 @@ almost as good as k-NN; reporting both is what exposes that the rules score
 
 ## 6. Honest scope
 
-Verified: all 80 unit tests pass; the full pipeline ran end to end over all
+Verified: all 87 unit tests pass; the full pipeline ran end to end over all
 28,587 real rows; the PII gate, the LLM label validator and the RAG citation
 checker are each pinned by a test. The Docker Compose stack, the Spark
 streaming and batch jobs, and the Elasticsearch writes and kNN queries have

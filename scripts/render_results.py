@@ -112,6 +112,39 @@ def render(report: dict) -> str:
                 ],
             )
         )
+        sections.append(
+            "\nRead alone, this looks like the multilingual embedding buys nothing "
+            "across languages. It does not: with 12,249 German tickets in the corpus, "
+            "a German query's unrestricted top-5 is dominated by German tickets on "
+            "volume alone, before cross-lingual ability ever gets a chance to show up. "
+            "The candidate pool, not the model, is what this table measures.\n"
+        )
+
+    if report.get("cross_lingual_retrieval_evaluation"):
+        sections.append("\n### Cross-lingual retrieval, language-filtered\n")
+        sections.append(
+            _table(
+                ["method", "queue purity@k", "precision@k", "MRR", "queries", "k"],
+                [
+                    [
+                        f"`{row['method']}`",
+                        f"{row['queue_purity_at_k']:.3f}",
+                        f"{row['precision_at_k']:.3f}",
+                        f"{row['mrr']:.3f}",
+                        str(row["n_queries"]),
+                        str(row["k"]),
+                    ]
+                    for row in report["cross_lingual_retrieval_evaluation"]
+                ],
+            )
+        )
+        sections.append(
+            "\nSame shared-tag proxy as the main retrieval table, but the candidate "
+            "pool is restricted to the *other* language before ranking -- the fix "
+            "`/search?q=...&language=en` gives a live user. Forced to match across "
+            "the language boundary, semantic retrieval still beats keyword search, "
+            "which is the fair test the unrestricted probe above could never pass.\n"
+        )
 
     # --- queue KPIs -----------------------------------------------------
     kpis = report.get("kpis", [])

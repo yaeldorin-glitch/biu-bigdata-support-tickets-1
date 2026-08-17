@@ -276,20 +276,20 @@ matching.
 
 | method | queue purity@5 | precision@5 | MRR |
 |---|---|---|---|
-| semantic | **0.338** | 0.739 | 0.838 |
-| keyword (BM25) | 0.325 | 0.731 | **0.851** |
-| **hybrid (RRF)** | **0.351** | **0.755** | **0.865** |
+| semantic | **0.346** | 0.744 | 0.835 |
+| keyword (BM25) | 0.322 | 0.728 | **0.859** |
+| **hybrid (RRF)** | **0.352** | **0.758** | **0.876** |
 
 Semantic now beats BM25 on queue purity and precision, and **hybrid wins on all
 three**. The neural model brings outside knowledge — it was trained on
 paraphrase pairs, not on this corpus — which is exactly what LSA could not do.
 
-BM25 still leads on MRR (0.851 vs 0.838). That is consistent rather than
+BM25 still leads on MRR (0.859 vs 0.835). That is consistent rather than
 contradictory: lexical matching is very good at putting an *exact* term match at
 rank 1, while the embedding is better across the whole top-5. Fusing the two with
 RRF beats either alone, which is why hybrid is the default in the API.
 
-### The cross-lingual probe did not work, and we know why
+### The cross-lingual probe did not work, and we know why — and fixed it
 
 | query | semantic hits in the other language | keyword |
 |---|---|---|
@@ -306,9 +306,26 @@ ability can show.
 Measuring it properly means restricting the candidate set: run a German query
 with `language=en` filtered on, and check whether the retrieved English tickets
 are topically right. The API already supports that filter
-(`/search?q=...&language=en`); the automated probe does not yet use it. That is
-the first thing we would fix, and we would rather say so than quietly report a
-zero as if it settled the question.
+(`/search?q=...&language=en`); `evaluate_cross_lingual_retrieval`
+(`src/tickets/ai/evaluate.py`) now does exactly that, scored with the same
+shared-tag proxy as the main retrieval table so the numbers are comparable —
+on the full 28,587-ticket corpus, 250 queries:
+
+| method | queue purity@5 | precision@5 | MRR |
+|---|---|---|---|
+| semantic | 0.313 | **0.685** | 0.787 |
+| keyword | 0.266 | 0.660 | 0.768 |
+| hybrid | 0.300 | 0.698 | 0.799 |
+
+Forced to match across the language boundary, semantic retrieval still beats
+keyword search, and by a **wider** margin than in the same-pool table above —
+2.5 points of precision@5 (0.685 vs. 0.660) versus 1.6 points when both search
+the same mixed pool (0.744 vs. 0.728). BM25 cannot match German query terms
+against English ticket text at all; this is the scenario the embedding earns
+its cost on. An earlier run of this same evaluation on a 5,000-ticket sample
+showed a much larger gap (11.5 points) — a reminder that a small sample can
+overstate an effect even when the direction is right. Full table and
+methodology note: `docs/RESULTS.md`.
 
 ## Insights from the data
 
@@ -367,7 +384,7 @@ src/tickets/
     es_client.py          index management + bulk loading
     api.py                FastAPI serving layer
   offline_pipeline.py     the whole pipeline with no infrastructure
-tests/                    80 unit tests
+tests/                    87 unit tests
 docs/                     design document, results, architecture diagram
 scripts/                  sample builder, results renderer, push helper
 ```
@@ -387,14 +404,14 @@ silently drift.
 ## Testing and verification
 
 ```bash
-make test        # 80 unit tests
+make test        # 87 unit tests
 ```
 
 Honest scope, since it affects how much you should trust what is here:
 
 | verified | how |
 |---|---|
-| all `core/` and `ai/` logic | 80 unit tests, all passing |
+| all `core/` and `ai/` logic | 87 unit tests, all passing |
 | the full pipeline over all 28,587 real rows | `offline_pipeline`, end to end, numbers in `docs/RESULTS.md` |
 | PII gate blocks unredacted text | unit test asserts it raises |
 | hallucinated LLM labels are rejected | unit test with a stub returning an invented queue |

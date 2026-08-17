@@ -236,7 +236,7 @@ function arrow(slide, x, y) {
   stageBox(s, {
     x: 9.25, y: y0, w: 3.45, h: 1.5, fill: NAVY,
     title: "4 · Serve",
-    lines: ["Elasticsearch — dense_vector 384", "cosine kNN + BM25, same docs", "Kibana dashboards", "FastAPI /search /ask /route"],
+    lines: ["Elasticsearch — dense_vector 384", "cosine kNN + BM25, same docs", "FastAPI /search /ask /route /kpis"],
   });
 
   s.addShape(pres.ShapeType.roundRect, {
@@ -485,8 +485,8 @@ function arrow(slide, x, y) {
     [
       { text: "Why — and why it was predictable", options: { bold: true, breakLine: true, fontSize: 13 } },
       { text: "These numbers come from the offline TF-IDF + SVD backend, i.e. LSA. LSA is a linear projection of the same term-document statistics BM25 already scores. It compresses lexical information; it adds no semantic information from outside the corpus.", options: { breakLine: true } },
-      { text: "The cross-lingual probe makes the point sharply: a German query retrieves ~0 relevant English tickets, because LSA shares no space across languages.", options: { breakLine: true } },
-      { text: "The multilingual neural model is expected to change both results. We have not measured it, so we do not claim it.", options: { bold: true, breakLine: false } },
+      { text: "The unrestricted cross-lingual probe makes the point sharply: a German query's top-5 is dominated by German tickets on volume alone (12,249 of them) before cross-lingual ability gets a chance to show — that is a flaw in the probe, not the model.", options: { breakLine: true } },
+      { text: "We fixed the probe: restrict the candidate pool to the other language before ranking, then score with the same relevance proxy, on the full 28,587-ticket corpus. Semantic beats keyword by 2.5 points of precision@5 (0.685 vs. 0.660) — wider than the 1.6-point gap in same-pool retrieval, because BM25 cannot match German query terms against English text at all. (A first pass on a 5,000-ticket sample showed an 11.5-point gap — right direction, overstated by sample size.)", options: { bold: true, breakLine: false } },
     ],
     { x: 7.3, y: 2.5, w: 5.4, h: 3.4, fontFace: BODY, fontSize: 11.5, color: INK, margin: 0, paraSpaceAfter: 8 }
   );
@@ -500,7 +500,10 @@ function arrow(slide, x, y) {
     "Do not skip this slide. It is the one that shows understanding rather than just a working system. The " +
     "honest position is: our design predicted semantic would win, it did not under the backend we could actually " +
     "run, and we can explain exactly why. Reproducing the neural comparison is one environment variable — " +
-    "EMBEDDING_BACKEND=sentence-transformers — and one pipeline re-run."
+    "EMBEDDING_BACKEND=sentence-transformers — and one pipeline re-run. On the cross-lingual result: the first " +
+    "probe we wrote was unfair by construction (mixed-language pool, dominated by the 12,249 German tickets), " +
+    "we caught that ourselves, fixed it with a language-filtered evaluation, and the corrected number is a real " +
+    "positive result, not just a caveat."
   );
 }
 
@@ -598,7 +601,7 @@ function arrow(slide, x, y) {
 
   const items = [
     ["Pure-Python core, Spark as a thin wrapper",
-     "Every transformation is a pure function; UDFs call them. This is what makes 80 unit tests meaningful and lets the whole pipeline run without Spark. Cost: a second native implementation of the KPIs, cross-checked automatically."],
+     "Every transformation is a pure function; UDFs call them. This is what makes 87 unit tests meaningful and lets the whole pipeline run without Spark. Cost: a second native implementation of the KPIs, cross-checked automatically."],
     ["At-least-once + idempotent sinks",
      "Cheaper than transactional exactly-once, and the end state is identical because ticket_id is a content hash."],
     ["Exact k-NN offline, HNSW in Elasticsearch",
@@ -640,7 +643,7 @@ function arrow(slide, x, y) {
     x: 8.5, y: 4.82, w: 4.0, h: 0.3, fontFace: BODY, fontSize: 13, bold: true, color: INK, margin: 0,
   });
   s.addText(
-    "80 unit tests pass and the pipeline ran end to end over all 28,587 rows. The Docker stack, the Spark jobs " +
+    "87 unit tests pass and the pipeline ran end to end over all 28,587 rows. The Docker stack, the Spark jobs " +
     "and the Elasticsearch writes have since been run and verified against the live stack — see docs/DEMO.md.",
     { x: 8.5, y: 5.15, w: 4.0, h: 1.0, fontFace: BODY, fontSize: 10.5, color: SLATE, margin: 0 }
   );
@@ -662,10 +665,10 @@ function arrow(slide, x, y) {
   });
 
   const demos = [
-    ["GET /compare?q=…", "One query, three rankings side by side — semantic, BM25 and hybrid. The clearest way to see what each retrieval mode actually does."],
-    ["POST /route", "Paste an unseen ticket. Returns the rule-based guess and the k-NN guess with its nearest neighbours, so the improvement is visible per request."],
-    ["POST /ask", "RAG over the corpus. Answers only from retrieved tickets; invented citations are stripped before you see them."],
-    ["Kibana", "KPI dashboards over the gold layer — queue volumes, sentiment, high-priority concentration."],
+    ["GET /compare?q=security incident", "Keyword surfaces a German ticket on a coincidental word match; semantic finds the right English ticket sharing no words at all with the query."],
+    ["POST /route", 'Text: "I was charged twice for the same order and need a refund." k-NN returns Technical Support at 33% confidence (5 of 15 votes) — a live look at how confidence is actually computed.'],
+    ["POST /ask", '"What security incidents have been reported?" — answered only from retrieved tickets; invented citations are stripped before you see them.'],
+    ["GET /kpis", "Computed aggregates over the gold layer — queue volumes, sentiment, high-priority concentration — served straight from output/kpis.json or Elasticsearch."],
   ];
 
   let y = 1.7;

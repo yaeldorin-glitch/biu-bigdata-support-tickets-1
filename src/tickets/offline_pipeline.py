@@ -111,17 +111,29 @@ def run(
     timings["index"] = time.time() - t0
 
     # --- evaluate -------------------------------------------------------
-    from .ai.evaluate import cross_lingual_probe, evaluate_retrieval, evaluate_routing
+    from .ai.evaluate import (
+        cross_lingual_probe,
+        evaluate_cross_lingual_retrieval,
+        evaluate_retrieval,
+        evaluate_routing,
+    )
 
     t0 = time.time()
     routing = [r.to_dict() for r in evaluate_routing(tickets, knn_k=knn_k)]
     timings["eval_routing"] = time.time() - t0
 
     retrieval: list[dict[str, Any]] = []
+    cross_lingual_retrieval: list[dict[str, Any]] = []
     if not skip_retrieval_eval:
         t0 = time.time()
         retrieval = [r.to_dict() for r in evaluate_retrieval(tickets, index, n_queries=eval_queries)]
         timings["eval_retrieval"] = time.time() - t0
+
+        t0 = time.time()
+        cross_lingual_retrieval = [
+            r.to_dict() for r in evaluate_cross_lingual_retrieval(tickets, index, n_queries=eval_queries)
+        ]
+        timings["eval_cross_lingual_retrieval"] = time.time() - t0
 
     probes = cross_lingual_probe(
         index,
@@ -154,6 +166,7 @@ def run(
         "summary": summary,
         "routing_evaluation": routing,
         "retrieval_evaluation": retrieval,
+        "cross_lingual_retrieval_evaluation": cross_lingual_retrieval,
         "cross_lingual_probe": probes,
         "kpis": all_kpis,
         "timings_seconds": {k: round(v, 2) for k, v in timings.items()},
@@ -197,11 +210,19 @@ def _print_summary(report: dict[str, Any]) -> None:
             print(f"{row['method']:<26} {row['queue_purity_at_k']:>10.3f} "
                   f"{row['precision_at_k']:>10.3f} {row['mrr']:>8.3f}")
 
-    print("\nCROSS-LINGUAL RETRIEVAL (hits in the other language, k=5)")
+    print("\nCROSS-LINGUAL PROBE, unrestricted pool (hits in the other language, k=5)")
     print("-" * 68)
     for probe in report["cross_lingual_probe"]:
         print(f"  {probe['query'][:38]:<40} semantic={probe['semantic_cross_language_hits']}  "
               f"keyword={probe['keyword_cross_language_hits']}")
+
+    if report["cross_lingual_retrieval_evaluation"]:
+        print("\nCROSS-LINGUAL RETRIEVAL, language-filtered (proxy relevance)")
+        print("-" * 68)
+        print(f"{'method':<26} {'queue@k':>10} {'P@k':>10} {'MRR':>8} {'n':>6}")
+        for row in report["cross_lingual_retrieval_evaluation"]:
+            print(f"{row['method']:<26} {row['queue_purity_at_k']:>10.3f} "
+                  f"{row['precision_at_k']:>10.3f} {row['mrr']:>8.3f} {row['n_queries']:>6}")
     print("=" * 68 + "\n")
 
 
