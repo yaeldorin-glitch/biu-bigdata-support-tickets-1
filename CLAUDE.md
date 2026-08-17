@@ -133,6 +133,16 @@ has to be able to defend.
   classical baseline the neural model is measured against.
 - **macro-F1 is reported alongside accuracy** everywhere. The majority class is
   29.3%; accuracy alone hides that the keyword rules score *below* a constant.
+- **Three demonstrated AI capabilities, not four.** `ai/llm.py` genuinely
+  supports Anthropic/OpenAI/Ollama for per-ticket classification, entity
+  extraction and summarisation — it is real, tested code, not a stub. But every
+  run reported anywhere in this project (the full 28,587-ticket run, the Docker
+  verification) used `LLM_PROVIDER=none`, so enrichment always took the
+  deterministic rule-based fallback, never the live-model path. Do not count it
+  as a fourth capability alongside embeddings/semantic search, RAG and ML
+  routing in README, design.md, either presentation deck, or the artifacts —
+  that would be claiming something that was never actually run. If it is ever
+  exercised against a real provider and the result is measured, promote it then.
 
 ---
 
