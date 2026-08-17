@@ -1,6 +1,7 @@
 # Ticket Intelligence — Big Data & AI course project
 
 **BIU 8688697201 — Big Data and AI**
+**Team:** Yael Cohen, Itay Nuri, Yahel Menachem
 
 An end-to-end ELT pipeline over 28,587 multilingual customer IT support tickets:
 Kafka → Spark Structured Streaming → MinIO (bronze/silver/gold) → Elasticsearch,

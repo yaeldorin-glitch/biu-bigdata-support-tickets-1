@@ -31,7 +31,7 @@ const BODY = "Calibri";
 
 const pres = new pptxgen();
 pres.layout = "LAYOUT_WIDE"; // 13.3 x 7.5
-pres.author = "Yael Dorin";
+pres.author = "Yael Cohen, Itay Nuri, Yahel Menachem";
 pres.title = "Ticket Intelligence - Big Data & AI";
 
 const W = 13.3;
@@ -157,7 +157,7 @@ function arrow(slide, x, y) {
     { x: 0.9, y: 4.3, w: 11.5, h: 0.9, fontFace: BODY, fontSize: 14, color: ICE, margin: 0, lineSpacing: 22 }
   );
 
-  s.addText("BIU 8688697201 — Big Data and AI  |  Yael Dorin", {
+  s.addText("BIU 8688697201 — Big Data and AI  |  Yael Cohen, Itay Nuri, Yahel Menachem", {
     x: 0.9, y: 6.4, w: 11.5, h: 0.4,
     fontFace: BODY, fontSize: 12, color: SLATE, margin: 0,
   });

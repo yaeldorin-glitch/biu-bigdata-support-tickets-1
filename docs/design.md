@@ -1,6 +1,7 @@
 # Design document
 
 **Ticket Intelligence — BIU 8688697201 Big Data and AI**
+**Team:** Yael Cohen, Itay Nuri, Yahel Menachem
 
 ## 1. Problem and dataset
 

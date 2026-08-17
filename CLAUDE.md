@@ -83,10 +83,10 @@ These constraints are load-bearing. Ignoring them wastes hours.
 | # | task | status |
 |---|---|---|
 | 1 | Get the Docker stack running | **done — see "Verified working" above** |
-| 2 | Run `run.ps1` once to confirm the guided script itself works | open |
-| 3 | Record a screen demo (required deliverable, 10% of the grade) | open, no longer blocked |
+| 2 | Run `run.ps1` once to confirm the guided script itself works | **done — `run.ps1 -Stack` brought up all 4 containers healthy; the producer and Spark streaming job were then run manually and streamed 17,354 real tickets through to Elasticsearch before being stopped** |
+| 3 | Record a screen demo (required deliverable, 10% of the grade) | open, no longer blocked — the stack has real data in it and is ready to go |
 | 4 | Owner reads and understands `src/tickets/core/` | ongoing, hers to do |
-| 5 | Confirm team size (brief specifies teams of 3; these docs speak of one owner) | worth a quick check with the instructor |
+| 5 | Confirm team size | **done — team of 3: Yael Cohen, Itay Nuri, Yahel Menachem** |
 
 `docs/presentation_he/` holds a separate Hebrew classroom deck (`מצגת.pptx`,
 10 slides with real charts) and a full speaking script (`תסריט.md`, split
