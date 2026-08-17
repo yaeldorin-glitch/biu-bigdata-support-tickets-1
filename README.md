@@ -201,16 +201,24 @@ effectively-once *in the sinks* without needing transactions.
 
 ## The AI capability (Part B)
 
-The brief asks for at least one option from section 6.2. This implements four,
-with **(b) embeddings and semantic search** as the graded centrepiece:
+The brief asks for at least one option from section 6.2. This implements
+three, with **(b) embeddings and semantic search** as the graded centrepiece:
 
 | # | option | where |
 |---|---|---|
 | **b** | **Embeddings + semantic search** — 384-d vectors in an Elasticsearch `dense_vector` field, cosine kNN | `core/embeddings.py`, `ai/search.py` |
 | c | **RAG** — grounded question answering with citation checking | `ai/rag.py`, `POST /ask` |
-| a | **LLM enrichment** — classify, tag entities, summarise, score sentiment | `ai/llm.py` |
 | f | **ML / predictive analytics** — k-NN and centroid routing classifiers | `ai/router.py` |
 | g | automated insight narrative over computed KPIs | `ai/rag.py::narrate_insights` |
+
+`ai/llm.py` also implements a pluggable **(a) LLM enrichment** path (classify,
+tag entities, summarise, score sentiment) against Anthropic, OpenAI or Ollama.
+It is not counted among the three above: every run in this repo — the full
+28,587-ticket run and the Docker verification alike — used `LLM_PROVIDER=none`,
+so enrichment always took the deterministic rule-based fallback
+(`source="rules"`), never the live-model path (`source="llm:..."`). The code
+is real and tested, but claiming it as a demonstrated capability would be
+claiming something we never actually ran.
 
 ### Two embedding backends, one interface
 

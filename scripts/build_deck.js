@@ -282,13 +282,12 @@ function arrow(slide, x, y) {
 // 4. The AI capability
 // =========================================================================
 {
-  const s = lightSlide("The AI capability", "Four of the brief's options; embeddings + semantic search is the centrepiece");
+  const s = lightSlide("The AI capability", "Three of the brief's options; embeddings + semantic search is the centrepiece");
 
   const rows = [
     ["b", "Embeddings + semantic search", "384-d vectors in an Elasticsearch dense_vector field, cosine kNN", TEAL],
     ["f", "k-NN routing classifier", "Reuses the same vectors — no separate model, no training run", NAVY],
     ["c", "RAG question answering", "Retrieves k tickets, answers only from them, citations verified", NAVY],
-    ["a", "LLM enrichment", "Classify, tag, summarise — output validated against known labels", NAVY],
   ];
 
   let y = 1.95;
@@ -348,7 +347,10 @@ function arrow(slide, x, y) {
     "The point about two backends is robustness: with LLM_PROVIDER=none and no model weights the pipeline " +
     "still produces every number in this deck. That is deliberate — the demo cannot be broken by a failed " +
     "download. On guardrails: asking a model to cite only what it was given is a prompt, not a guarantee, " +
-    "so we post-check every citation and strip the invented ones."
+    "so we post-check every citation and strip the invented ones. If asked about a fourth option: ai/llm.py " +
+    "also implements LLM-based enrichment (option a) against a real provider, but it was never exercised — " +
+    "every run reported here used LLM_PROVIDER=none, so it took the rule-based fallback, not a live model. " +
+    "The code exists; the capability was never actually run, so it isn't claimed as one of the three."
   );
 }
 

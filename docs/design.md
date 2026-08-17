@@ -59,19 +59,25 @@ verified (section 6) drops it and serves KPIs through the API instead.
 
 ## 3. The AI capability
 
-Four of the brief's §6.2 options are implemented, with **(b) embeddings and
-semantic search** as the graded centrepiece: `paraphrase-multilingual-MiniLM-L12-v2`
-produces 384-d vectors in an Elasticsearch `dense_vector` field (cosine kNN); a
-second offline TF-IDF+SVD backend behind the same interface needs no download
-and doubles as the classical baseline. **Routing (f):** a similarity-weighted
-k-NN over the search embeddings and a linear SVM over word+char TF-IDF are
-exposed side by side on `POST /route`. **RAG (c):** `POST /ask` retrieves the
-k most similar tickets and grounds the answer, stripping any citation the model
-invents. **LLM enrichment (a):** optional per-ticket classification, entity
-extraction and summarisation, validated against known label vocabularies before
-reaching the index. With `LLM_PROVIDER=none` and no model weights, the pipeline
-still produces every number below — a deliberate design property, not a
-limitation.
+Three of the brief's §6.2 options are implemented and demonstrated, with
+**(b) embeddings and semantic search** as the graded centrepiece:
+`paraphrase-multilingual-MiniLM-L12-v2` produces 384-d vectors in an
+Elasticsearch `dense_vector` field (cosine kNN); a second offline TF-IDF+SVD
+backend behind the same interface needs no download and doubles as the
+classical baseline. **Routing (f):** a similarity-weighted k-NN over the
+search embeddings and a linear SVM over word+char TF-IDF are exposed side by
+side on `POST /route`. **RAG (c):** `POST /ask` retrieves the k most similar
+tickets and grounds the answer, stripping any citation the model invents —
+with `LLM_PROVIDER=none` and no model weights, it answers extractively
+straight from the retrieved tickets rather than failing, which is itself the
+demonstrated behaviour, not a fallback we're hiding.
+
+`ai/llm.py` also implements a pluggable **(a) LLM enrichment** path
+(classification, entity extraction, summarisation against a real model), but
+it is not counted as a fourth demonstrated capability: every run reported
+here used `LLM_PROVIDER=none`, so enrichment always took the rule-based
+fallback, never a live model. The code exists and is tested; the capability
+was never exercised.
 
 ## 4. Results
 
