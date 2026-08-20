@@ -235,6 +235,8 @@ listed here so a repeat is a two-minute fix, not a re-investigation:
 | kNN query rejected by Elasticsearch | index created by dynamic mapping | delete the index, run step 2, re-stream |
 | `No module named 'tickets'` | not installed, or wrong folder | `pip install -e .`, then use `tickets-pipeline` |
 | Port already in use | leftover containers | `docker compose -f docker-compose.slim.yml down` then retry |
+| `docker compose ... ps` shows nothing, or all containers say `Exited` | the machine was restarted since the stack was last brought up -- Docker Desktop does not auto-resume containers on its own restart | `docker compose -f docker-compose.slim.yml up -d` (no `--build` needed) -- this restarts the *existing* containers, not fresh ones, so all indexed data in MinIO and Elasticsearch is still there |
+| `http://localhost:8000/docs` refuses to connect / times out | the API is a separate process, not part of `run.ps1 -Stack` or `docker compose up` -- nothing serves that port until you start it | in the project folder: `python -m uvicorn tickets.serving.api:app --host 0.0.0.0 --port 8000`. First request after starting is slow (a minute or so) while it loads the embedding model -- that is normal, not a hang. Leave this window open for the whole demo. |
 
 **If the stack fails mid-demo**, fall back to step 0 and to
 `OFFLINE_API=1 uvicorn tickets.serving.api:app` — the same API, same endpoints,
