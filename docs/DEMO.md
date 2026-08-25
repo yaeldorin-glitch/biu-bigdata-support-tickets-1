@@ -4,7 +4,8 @@ Everything you actually need for the recording/presentation. If a line here
 doesn't make sense once you're doing it, ask about that one line.
 
 For *understanding* the project (concepts, why things are built this way),
-read "מסע הכרטיס" — that's a separate guide, not this file.
+read "מסע הכרטיס" — that's a separate guide, not this file:
+<https://claude.ai/code/artifact/a1d650aa-679c-423d-8010-856292f1f0f7>
 
 ---
 
@@ -42,6 +43,8 @@ already-real data honestly is enough.
 |---|---|
 | `docker compose ... ps` shows nothing, or everything says `Exited` | the machine was restarted or slept — data is safe, just run `.\run.ps1 -Stack` again |
 | The link refuses to connect even after step 2 finished | wait a full minute — the first request loads the AI model, that delay is normal, not a hang |
+| Docker Desktop is installed, but only some of the four services ever show up (Kafka, MinIO, Elasticsearch, Spark) | `.\run.ps1 -Stack` was never actually run to completion on this computer — opening Docker Desktop by itself doesn't create any of the four, only the command does. Run `.\run.ps1 -Stack` and let it finish; first time on a new computer takes ~30-40 min (~3GB download) |
+| Nothing here works, and the files on this computer don't match what's described | this computer doesn't have the actual project — it has other, unrelated files (get the real thing: `git clone https://github.com/yaeldorin-glitch/biu-bigdata-support-tickets-1.git`, or the green **Code → Download ZIP** button on that page). None of these commands work against anything else |
 | Still stuck | `OFFLINE_API=1 uvicorn tickets.serving.api:app` — same API, no Docker needed, works instantly |
 
 ---
