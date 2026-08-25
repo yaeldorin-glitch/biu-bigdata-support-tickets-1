@@ -62,6 +62,27 @@ machine slept, restarted, or ran low on memory) — `docs/DEMO.md`'s
 "When something breaks" table below covers this and the other real failures
 already hit while building this project.
 
+### Things to actually type in, once the link is open
+
+At `http://localhost:8000/docs`, click an endpoint, click **Try it out**,
+replace the example text with one of these, then click **Execute**. Typing
+your own input and watching a real response come back is what makes this
+project click — reading about it is not the same as doing it.
+
+| endpoint | try typing this | what you're looking for |
+|---|---|---|
+| `GET /compare` | `q`: `security incident` | keyword's top result is a **German** ticket that only matches because it contains the word "Incident" as part of "Incident-Response" — not actually about security. Semantic's top result is about unauthorized access — the right topic, sharing no words with the query. |
+| `GET /search` | `q`: `password reset`, `mode`: `semantic` | real tickets about login/access problems, even ones that never use the words "password" or "reset" |
+| `GET /search` | `q`: `Sicherheitsvorfall` (German for "security incident"), `mode`: `semantic` | this is the multilingual claim made concrete: a German query pulling back relevant results even though the model was never told these two words correspond |
+| `POST /route` | `text`: `I was charged twice for the same order and need a refund` | predicts **Billing and Payments**; check the `confidence` value — that's how sure the model actually is, not just its guess |
+| `POST /route` | `text`: `Our production database has been unreachable for two hours and customers cannot check out` | predicts **Service Outages and Maintenance** — a real example of the queue that's only 4% of volume but 71% high-priority |
+| `POST /ask` | `question`: `What are the most common billing complaints?` | an answer built only from real retrieved tickets — check the `citations` field, then look up one of those ticket IDs with `/search` to see it's a real ticket, not invented |
+| `GET /kpis` | no input needed, just Execute | the aggregated numbers behind the project's headline findings (language mislabeling, priority-by-queue) |
+
+Change the words, not just the endpoint — typing something you made up
+yourself and seeing whether the result makes sense is the real test of
+whether you understand what this is doing.
+
 ---
 
 ## Before you record
