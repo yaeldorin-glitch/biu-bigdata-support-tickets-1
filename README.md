@@ -14,6 +14,45 @@ have we already solved?**
 
 ---
 
+## New to this project? Start here
+
+If you're a teammate joining this project for the first time, do these **in
+order** — each one only needed if the one before it wasn't enough for what
+you're trying to do.
+
+**1. Understand what this is (0 setup, ~30-40 min).** Read the "מסע הכרטיס"
+guide — ask whoever shared this repo with you for the link if you don't have
+it. It explains every concept from zero, in plain language, with a real
+ticket followed through the whole system. This alone is enough to understand
+the project and hold up in Q&A — nothing below is required just to
+*understand* it.
+
+**2. Get the code running, no Docker (~10 min).** This is enough to run the
+actual pipeline and see real output, without installing anything heavy:
+```powershell
+git clone https://github.com/yaeldorin-glitch/biu-bigdata-support-tickets-1.git
+cd biu-bigdata-support-tickets-1
+pip install -e .
+tickets-pipeline --limit 5000
+```
+This works immediately using the small sample dataset already committed in
+the repo — you do not need the full 26MB CSV for this step. It writes
+`output/report.json`. (If you *do* have the full `tickets.csv`, see
+[`data/README.md`](data/README.md) for exactly where it goes —
+`data\raw\tickets.csv` — to get the real numbers instead of sample-sized
+ones.)
+
+**3. Run the full live demo yourself (~30-40 min, optional).** Only do this
+if you specifically want to click through the live API on your own computer
+— for example if you'll be the one presenting live, or you want hands-on
+practice beyond what step 1 already covered. Needs Docker Desktop installed
+first (docker.com, free). Then see
+["Opening the live demo link, step by step"](#opening-the-live-demo-link-step-by-step)
+below — expect it to take much longer than the times listed there, since
+Docker has to download ~3GB the first time on a new computer.
+
+---
+
 ## Headline result
 
 Predicting the `queue` label from ticket text alone, on a stratified 25%
