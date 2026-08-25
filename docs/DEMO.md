@@ -1,375 +1,69 @@
 # Demo runbook
 
-The brief requires "a live demo, or a recorded demo when a live one is not
-possible" (section 7) and weights presentation + demo at 10%. This is the script
-for it.
+Everything you actually need for the recording/presentation. If a line here
+doesn't make sense once you're doing it, ask about that one line.
 
-**Record it in advance even if you plan to present live.** A recording is an
-accepted deliverable, and it means a container that refuses to start on the day
-costs you nothing. Windows has a recorder built in: `Win + G`.
-
-Total runtime once images are pulled: about 8 minutes. Budget 30-40 minutes for
-the very first run — Docker pulls ~3GB of images and Spark resolves ~200MB of
-Ivy jars.
-
-**This file is the "how to run it" half.** For the "what does it all mean"
-half — every concept explained in plain language the moment it comes up, plus
-a full walkthrough of every API endpoint with real input/output examples —
-see the "מסע הכרטיס" guide (published as a Claude Artifact; ask whoever set
-this project up for the link if you don't have it). Read that once first;
-come back here when you're ready to actually run things.
+For *understanding* the project (concepts, why things are built this way),
+read "מסע הכרטיס" — that's a separate guide, not this file.
 
 ---
 
-## New teammate? Start here
+## Before the presentation (once, whenever you have 20-30 min)
 
-Do these **in order** — each one only if the one before it wasn't enough for
-what you're actually trying to do. Don't do more setup than your goal needs.
-
-**1. Understand the project (0 setup, ~30-40 min).** Read "מסע הכרטיס" (link
-above). That alone is enough to understand the project and hold up in Q&A —
-nothing below is required just to *understand* it.
-
-**2. Run the code, no Docker (~10 min).**
-```powershell
-git clone https://github.com/yaeldorin-glitch/biu-bigdata-support-tickets-1.git
-cd biu-bigdata-support-tickets-1
-pip install -e .
-tickets-pipeline --limit 5000
-```
-Works immediately off the sample dataset already committed in the repo — the
-full 26MB CSV is not required for this step. Writes `output/report.json`.
-
-**3. Run the live demo yourself (~30-40 min, optional).** Only if you'll be
-presenting live from your own computer, or want hands-on practice beyond
-step 1. Needs Docker Desktop installed (docker.com, free), then the "Quick
-reference" section right below — expect it to take much longer than the
-times listed there, since Docker downloads ~3GB the first time on a new
-computer.
+1. Read "מסע הכרטיס" once, start to finish.
+2. Open the demo link yourself (see below) and try the 4 examples in the
+   table below.
+3. Skim "Questions you should expect" at the bottom of this file.
 
 ---
 
-## Quick reference: opening the demo link, every time
-
-This is the short answer to "what do I actually run, and why." Everything
-under **one-time** only needs doing once, ever, on a given machine — it is
-already done on this one. Everything under **every time** is what you repeat
-each session.
-
-**One-time (already done on this machine):**
-
-| step | why |
-|---|---|
-| Install Docker Desktop | it is the engine all four background services run inside |
-| `pip install -e .` | installs this project's Python code and the `tickets-pipeline` / `run.ps1` commands |
-| First `docker compose ... up` | downloads ~3GB of images (Kafka, Elasticsearch, MinIO, Spark) — cached after this, never re-downloaded |
-| `EMBEDDING_BACKEND=offline tickets-pipeline --limit 3000` | fits the offline model Spark needs; see "Before you record" below |
-
-**Every time you want the demo link working:**
-
-| # | step | where | how long |
-|---|---|---|---|
-| 1 | Open Docker Desktop | Windows key → type "Docker Desktop" → click | ~20-30s to finish starting |
-| 2 | Open PowerShell **inside the project folder** | File Explorer → the folder → type `powershell` in the address bar → Enter | instant |
-| 3 | `.\run.ps1 -Stack` | that PowerShell window | ~1-3 min total: starts the 4 containers, waits for Elasticsearch, then starts the demo API itself |
-| 4 | Open `http://localhost:8000/docs` | any browser | instant once step 3's window prints "Uvicorn running" |
-| 5 | Leave that PowerShell window open | — | for as long as you want the link to keep working |
-
-**Why each piece is needed:** step 1 turns on the engine (nothing else can run
-without it). Step 3 turns on the four background services *and* the API — the
-API is a separate program from the four containers, and it is specifically
-the thing that answers when your browser opens the link, so without it the
-containers can be perfectly healthy and the link will still fail to connect.
-The ~1 minute wait in step 3 is that API loading the AI model into memory;
-it happens fresh every time the API starts, because closing the window stops
-it (the four containers, and all the data already inside them, keep running
-in the background either way — only the API needs restarting).
-
-**If step 3 fails:** almost always because the containers had exited (the
-machine slept, restarted, or ran low on memory) — `docs/DEMO.md`'s
-"When something breaks" table below covers this and the other real failures
-already hit while building this project.
-
-### Things to actually type in, once the link is open
-
-At `http://localhost:8000/docs`, click an endpoint, click **Try it out**,
-replace the example text with one of these, then click **Execute**. Typing
-your own input and watching a real response come back is what makes this
-project click — reading about it is not the same as doing it.
-
-| endpoint | try typing this | what you're looking for |
-|---|---|---|
-| `GET /compare` | `q`: `security incident` | keyword's top result is a **German** ticket that only matches because it contains the word "Incident" as part of "Incident-Response" — not actually about security. Semantic's top result is about unauthorized access — the right topic, sharing no words with the query. |
-| `GET /search` | `q`: `password reset`, `mode`: `semantic` | real tickets about login/access problems, even ones that never use the words "password" or "reset" |
-| `GET /search` | `q`: `Sicherheitsvorfall` (German for "security incident"), `mode`: `semantic` | this is the multilingual claim made concrete: a German query pulling back relevant results even though the model was never told these two words correspond |
-| `POST /route` | `text`: `I was charged twice for the same order and need a refund` | predicts **Billing and Payments**; check the `confidence` value — that's how sure the model actually is, not just its guess |
-| `POST /route` | `text`: `Our production database has been unreachable for two hours and customers cannot check out` | predicts **Service Outages and Maintenance** — a real example of the queue that's only 4% of volume but 71% high-priority |
-| `POST /ask` | `question`: `What are the most common billing complaints?` | an answer built only from real retrieved tickets — check the `citations` field, then look up one of those ticket IDs with `/search` to see it's a real ticket, not invented |
-| `GET /kpis` | no input needed, just Execute | the aggregated numbers behind the project's headline findings (language mislabeling, priority-by-queue) |
-
-Change the words, not just the endpoint — typing something you made up
-yourself and seeing whether the result makes sense is the real test of
-whether you understand what this is doing.
-
----
-
-## Before you record
-
-```powershell
-cd C:\path\to\biu-bigdata-support-tickets
-pip install -e .
-```
-
-Check three things:
-
-1. **Docker Desktop is running.** On an 8GB machine, always use
-   `docker-compose.slim.yml`, never the default file — every command below
-   assumes it (`-f docker-compose.slim.yml`). The slim file drops Kibana and
-   caps Elasticsearch's heap; the default file assumes 8GB free inside Docker
-   and gets Elasticsearch OOM-killed on startup.
-2. **The full dataset is at `data\raw\tickets.csv`.** Without it everything runs
-   on the 300-row sample and the numbers will not match your slides.
-3. **Nothing else is using ports** 9092, 9000, 9001, 9200, 4040, 8000. (4040 is
-   the Spark UI; 5601 would be Kibana, but it is not present in the slim stack.)
-
-**One-time setup: fit the offline embedding model.** The Spark container runs
-with `EMBEDDING_BACKEND=offline` (loading the 471MB neural model into every
-executor does not fit the memory budget), and that backend needs a *fitted*
-model file — it cannot fit itself on a 50-ticket streaming batch. Fit it once
-against a real sample and it is reused on every future run:
-
-```powershell
-EMBEDDING_BACKEND=offline tickets-pipeline --limit 3000
-```
-
-This takes seconds (it is TF-IDF+SVD, not the neural model) and writes
-`output/offline_embedding_model.joblib`, which the Spark container picks up
-automatically via `OFFLINE_EMBEDDING_MODEL` in `docker-compose.slim.yml`.
-Skipping this step fails with `RuntimeError: the offline embedding backend
-needs either a fitted model file or a corpus to fit on`.
-
-Do a full dry run start to finish before recording. The first run is the one
-that finds the problems.
-
----
-
-## The sequence — the simple version
-
-The full pipeline (streaming new data live, on camera) is documented further
-below for reference, but you do **not** need it for the recording — the index
-already has 17,354 real tickets in it from earlier verification, and showing
-already-real data is completely honest. This version uses **one PowerShell
-window and one browser tab**, nothing else, and covers the same grading
-criteria with far less that can go wrong on camera.
-
-### Everything you actually do, in order
+## During the presentation
 
 | # | Where | What | Say / show |
 |---|---|---|---|
-| 1 | PowerShell window, inside the project folder | `.\run.ps1 -Stack` — wait for it to finish (~2-3 min) | while waiting: "this brings up Kafka, MinIO, Elasticsearch and Spark — four of the course technologies" |
-| 2 | Same window, once it prints "Uvicorn running" | nothing — just leave this window open for the rest of the recording | this window *is* now serving the demo link |
-| 3 | Browser | open `http://localhost:8000/docs` | "this is the live API, backed by 17,354 real tickets already indexed" |
-| 4 | Browser, in `/compare` | type `q`: `I was charged twice for my subscription`, click Execute | point at a semantic result that shares no words with the query but is clearly relevant — "this is what the AI capability actually buys us" |
-| 5 | Browser, in `/route` | type `text`: `Our production database has been unreachable for two hours and customers cannot check out` | say the number out loud: **64.8% accuracy vs. a 29.2% majority-class baseline** |
-| 6 | Browser, in `/ask` | type `question`: `What are the most common billing complaints?` | point at `citations` — "the answer only uses real retrieved tickets, and invented citations get stripped before they'd reach a user" |
-| 7 | Browser, in `/kpis` | click Execute, no input needed | say: "German-labelled tickets are wrong 27.2% of the time vs. 0.05% for English — and Service Outages is 4% of volume but 71% high-priority" |
+| 1 | Open Docker Desktop | click it, wait ~20-30s | — |
+| 2 | PowerShell, inside the project folder | `.\run.ps1 -Stack` — wait ~2-3 min | while waiting: "this brings up Kafka, MinIO, Elasticsearch and Spark — four of the course technologies" |
+| 3 | Same window, once it says "Uvicorn running" | leave this window open for the rest of the demo | this window *is* now serving the link |
+| 4 | Browser | open `http://localhost:8000/docs` | "this is the live API, backed by 17,354 real tickets already indexed" |
+| 5 | Browser, `/compare` | `q`: `I was charged twice for my subscription` | point at a semantic result sharing no words with the query — "this is what the AI capability buys us" |
+| 6 | Browser, `/route` | `text`: `Our production database has been unreachable for two hours and customers cannot check out` | say out loud: **64.8% accuracy vs. a 29.2% majority-class baseline** |
+| 7 | Browser, `/ask` | `question`: `What are the most common billing complaints?` | point at `citations` — "only built from real retrieved tickets" |
+| 8 | Browser, `/kpis` | click Execute, no input | say: "German-labelled tickets are wrong 27.2% of the time vs. 0.05% for English; Service Outages is 4% of volume but 71% high-priority" |
 
-That's the whole recording. Steps 4-7 are exactly the rows from "Things to
-actually type in" above — you've already tried these once, so on the actual
-recording you're repeating something familiar, not doing it for the first
-time.
-
-**If you also want to show the live streaming pipeline itself** (optional,
-not required — the data being already-real and already-indexed is enough),
-the full version with the producer and Spark streaming job is below, under
-"The full sequence, with live streaming."
+That's the whole thing. You don't need the producer, the Spark streaming
+job, or anything else — the index already has real data in it, and showing
+already-real data honestly is enough.
 
 ---
 
-## The full sequence, with live streaming (optional)
+## If it doesn't work
 
-### 0. Safety net first (30 seconds)
-
-Run this *before* touching Docker, and leave the output on screen:
-
-```powershell
-tickets-pipeline --full
-```
-
-This produces every number in your slides with no infrastructure at all. If
-anything later fails, you still have a working demo. Say so out loud — "this is
-the same logic the Spark job runs, without the cluster" — because it is true and
-it is a point in your favour, not an excuse.
-
-### 1. Bring up the stack (2 minutes, mostly waiting)
-
-```powershell
-docker compose -f docker-compose.slim.yml up -d
-docker compose -f docker-compose.slim.yml ps
-```
-
-Talk over the wait. The services are: Kafka (broker), MinIO (object store),
-Elasticsearch (NoSQL + vector index), Spark (local mode). That is four of the
-course technologies in one screen — worth pointing at explicitly, since "use of
-course technologies" is 20% of the grade. (The slim stack drops Kibana to fit
-an 8GB machine; the FastAPI `/kpis` endpoint covers the same numbers.)
-
-Wait until Elasticsearch answers:
-
-```powershell
-curl http://localhost:9200/_cluster/health
-```
-
-### 2. Create the index (10 seconds)
-
-```powershell
-python -c "from tickets.serving.es_client import create_indices; print(create_indices())"
-```
-
-**Say why this step exists**, it is a good detail: the `embedding` field has to
-be declared as `dense_vector` *before* the first write. If you let Elasticsearch
-infer the mapping it types it as a plain float array, kNN search stops working,
-and field types are immutable — the only fix is a full reindex.
-
-### 3. Stream the data (3 minutes)
-
-Two separate PowerShell windows, both open at the same time (open a second
-window the same way as the first — File Explorer → the project folder → type
-`powershell` in the address bar). First, in window A, the producer:
-
-```powershell
-tickets-producer --rate 200
-```
-
-Then in window B, the streaming job. Note the target is
-`docker/spark/run_module.py`, not `stream_job.py` directly: `spark-submit`
-executes its target file as a bare script with no parent package, and
-`stream_job.py` uses relative imports (`from ..config import ...`) that only
-resolve when Python loads it as part of the `tickets` package. The launcher
-runs it as a real module import instead — the same effect as
-`python -m tickets.spark.stream_job`, which `spark-submit` has no flag for:
-
-```powershell
-docker compose -f docker-compose.slim.yml exec spark spark-submit `
-  --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1,org.apache.hadoop:hadoop-aws:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.262,org.elasticsearch:elasticsearch-spark-30_2.12:8.13.4 `
-  /opt/project/docker/spark/run_module.py tickets.spark.stream_job --trigger-seconds 5
-```
-
-While it runs, show the data landing in three places (a third window, or your
-browser, for these — do not close windows A or B):
-
-- **MinIO** — <http://localhost:9001> (`minioadmin` / `minioadmin`) — the `lake`
-  bucket — `bronze/` filling with Parquet, then `silver/`
-- **Elasticsearch** — `curl http://localhost:9200/tickets/_count`
-- **Spark UI** — <http://localhost:4040> — the streaming query, batch by batch
-
-The bronze/silver split is worth one sentence: bronze is raw and immutable, so
-when the enrichment logic changes you replay from there rather than from Kafka,
-whose retention is finite.
-
-### 4. Batch KPIs (1 minute)
-
-Stop the streaming job first (in window B: `Ctrl+C`, or in window A:
-`docker compose -f docker-compose.slim.yml exec spark pkill -f SparkSubmit` —
-it is a persistent query and will not exit on its own), then, in either
-window:
-
-```powershell
-docker compose -f docker-compose.slim.yml exec spark spark-submit `
-  --packages org.apache.hadoop:hadoop-aws:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.262,org.elasticsearch:elasticsearch-spark-30_2.12:8.13.4 `
-  /opt/project/docker/spark/run_module.py tickets.spark.batch_kpis
-```
-
-Point out the line in the log that says verification passed — the Spark
-aggregates are cross-checked against the pure-Python reference implementation, so
-the two cannot silently drift.
-
-### 5. The AI capability (2 minutes) — this is the part that matters
-
-In a PowerShell window (a fresh one, or window A once the commands above have
-finished):
-
-```powershell
-python -m uvicorn tickets.serving.api:app --host 0.0.0.0 --port 8000
-```
-
-Open <http://localhost:8000/docs>. From here on, follow rows 4-6 of "The
-sequence — the simple version" above — same endpoints, same examples.
-
-### 6. KPIs (1 minute)
-
-Same as row 7 of the simple version above: `GET /kpis`, no input needed.
-
----
-
-## Shutting down
-
-```powershell
-docker compose -f docker-compose.slim.yml down        # keeps the data
-docker compose -f docker-compose.slim.yml down -v     # deletes the volumes too
-```
-
----
-
-## When something breaks
-
-Found and fixed once this stack was actually started for the first time —
-listed here so a repeat is a two-minute fix, not a re-investigation:
-
-| symptom | cause | fix |
-|---|---|---|
-| Elasticsearch exits right after start | Docker memory below 8GB, or using `docker-compose.yml` instead of the slim file | always `-f docker-compose.slim.yml`; Settings → Resources → Memory |
-| Producer connects then times out | wrong bootstrap address | host → `localhost:9092`, container → `kafka:29092` |
-| `spark-submit` hangs on first run | Ivy resolving jars | wait it out once; they are cached afterwards |
-| `bitnami/kafka:3.7` / `bitnami/spark:3.5.1: not found` | Bitnami retired free-tier version tags | already fixed in `docker-compose.slim.yml` / `docker/spark/Dockerfile` → `bitnamilegacy/*` |
-| `FileNotFoundError` in `.ivy2/cache` during Ivy resolve | the `ivy-cache` named volume is created root-owned but the container runs as non-root UID 1001 | one-time: `docker compose -f docker-compose.slim.yml exec -u root spark chown -R 1001:0 /opt/bitnami/spark/.ivy2` |
-| `ImportError: attempted relative import with no known parent package` | `spark-submit` runs its target as a bare script, not a package module | target `docker/spark/run_module.py <module>` instead of the `.py` file directly (see step 3) |
-| `ModuleNotFoundError: No module named 'pyarrow'` | Spark's `mapInPandas` needs Arrow; it was missing from `requirements.txt` | already fixed — `pyarrow` is now a dependency |
-| `RuntimeError: the offline embedding backend needs either a fitted model file or a corpus to fit on` | streaming a batch alone gives the offline backend nothing to fit on | run the one-time `EMBEDDING_BACKEND=offline tickets-pipeline --limit 3000` step above first |
-| kNN query rejected by Elasticsearch | index created by dynamic mapping | delete the index, run step 2, re-stream |
-| `No module named 'tickets'` | not installed, or wrong folder | `pip install -e .`, then use `tickets-pipeline` |
-| Port already in use | leftover containers | `docker compose -f docker-compose.slim.yml down` then retry |
-| `docker compose ... ps` shows nothing, or all containers say `Exited` | the machine was restarted since the stack was last brought up -- Docker Desktop does not auto-resume containers on its own restart | `docker compose -f docker-compose.slim.yml up -d` (no `--build` needed) -- this restarts the *existing* containers, not fresh ones, so all indexed data in MinIO and Elasticsearch is still there |
-| `http://localhost:8000/docs` refuses to connect / times out | the API is a separate process, not part of `run.ps1 -Stack` or `docker compose up` -- nothing serves that port until you start it | in the project folder: `python -m uvicorn tickets.serving.api:app --host 0.0.0.0 --port 8000`. First request after starting is slow (a minute or so) while it loads the embedding model -- that is normal, not a hang. Leave this window open for the whole demo. |
-
-**If the stack fails mid-demo**, fall back to step 0 and to
-`OFFLINE_API=1 uvicorn tickets.serving.api:app` — the same API, same endpoints,
-in-memory index, no infrastructure. Practise this fallback once so you can do it
-calmly.
+| symptom | fix |
+|---|---|
+| `docker compose ... ps` shows nothing, or everything says `Exited` | the machine was restarted or slept — data is safe, just run `.\run.ps1 -Stack` again |
+| The link refuses to connect even after step 2 finished | wait a full minute — the first request loads the AI model, that delay is normal, not a hang |
+| Still stuck | `OFFLINE_API=1 uvicorn tickets.serving.api:app` — same API, no Docker needed, works instantly |
 
 ---
 
 ## Questions you should expect
 
-The brief allows 3 minutes of questions and weights understanding above
-everything else. The likely ones:
+**"Why ELT and not ETL?"** The broker holds raw untransformed messages;
+Spark transforms them downstream. That means the enrichment logic can change
+and be replayed from raw data without going back to the source.
 
-**"Why ELT and not ETL?"** The broker holds raw untransformed messages and Spark
-does the transformation downstream. That means we can change the enrichment logic
-and replay from bronze without re-extracting from source.
+**"What happens if a Spark batch fails halfway?"** Kafka gives
+at-least-once, so it replays. Every sink is idempotent because `ticket_id`
+is a SHA-1 of the ticket's content — a replay overwrites the same document
+instead of duplicating it.
 
-**"What happens if a Spark batch fails halfway?"** Kafka gives at-least-once, so
-the batch replays. Every sink is idempotent because `ticket_id` is a SHA-1 of the
-ticket's content — a replay overwrites the same Elasticsearch documents instead
-of duplicating them. Effectively-once in the sinks, without needing transactions.
+**"Why is accuracy only 65%?"** Four of the ten queues (Technical, Product,
+IT Support, Customer Service) overlap semantically, and nearly all confusion
+is inside that cluster. Queues that are semantically distinct do well —
+Billing recall 0.82. Top-3 accuracy is 87.3%, so as a suggestion tool rather
+than an auto-filer it's already strong.
 
-**"Why is semantic search not beating keyword search?"** (if asked about the
-offline-backend numbers in `docs/CEILING.md`) Because those come from the
-offline TF-IDF+SVD backend, which is LSA — a linear projection of the same
-statistics BM25 already scores. It compresses lexical information and adds no
-outside semantic knowledge. With the neural model — what the live demo and
-`docs/RESULTS.md` actually use — semantic wins: 0.744 vs. 0.728 precision@5,
-and the gap widens to 0.685 vs. 0.660 when the query and its match are forced
-to be in different languages, where BM25 cannot share a single word with a
-German query against an English ticket.
-
-**"Why is accuracy only 65%?"** Because four of the ten queues — Technical,
-Product, IT Support and Customer Service — overlap semantically, and every large
-confusion is inside that cluster. The queues that are semantically distinct do
-fine: Billing recall 0.82, Service Outages 0.75. Top-3 accuracy is 87.3%, so as a
-suggestion tool rather than an auto-filer it is already strong.
-
-**"Did you write this code?"** Answer honestly — the brief explicitly permits an
-AI assistant and explicitly requires that you can explain every line. Read
-through `src/tickets/core/` before the demo; it is eight files of plain Python
-with no framework, and it is where all the real logic lives.
+**"Did you write this code?"** Answer honestly — the brief explicitly
+permits an AI assistant and requires that you can explain every line. Read
+`src/tickets/core/` before presenting; eight plain Python files, no
+framework, where the real logic lives.
