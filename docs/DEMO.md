@@ -14,6 +14,49 @@ Ivy jars.
 
 ---
 
+## Quick reference: opening the demo link, every time
+
+This is the short answer to "what do I actually run, and why." Everything
+under **one-time** only needs doing once, ever, on a given machine — it is
+already done on this one. Everything under **every time** is what you repeat
+each session.
+
+**One-time (already done on this machine):**
+
+| step | why |
+|---|---|
+| Install Docker Desktop | it is the engine all four background services run inside |
+| `pip install -e .` | installs this project's Python code and the `tickets-pipeline` / `run.ps1` commands |
+| First `docker compose ... up` | downloads ~3GB of images (Kafka, Elasticsearch, MinIO, Spark) — cached after this, never re-downloaded |
+| `EMBEDDING_BACKEND=offline tickets-pipeline --limit 3000` | fits the offline model Spark needs; see "Before you record" below |
+
+**Every time you want the demo link working:**
+
+| # | step | where | how long |
+|---|---|---|---|
+| 1 | Open Docker Desktop | Windows key → type "Docker Desktop" → click | ~20-30s to finish starting |
+| 2 | Open PowerShell **inside the project folder** | File Explorer → the folder → type `powershell` in the address bar → Enter | instant |
+| 3 | `.\run.ps1 -Stack` | that PowerShell window | ~1-3 min total: starts the 4 containers, waits for Elasticsearch, then starts the demo API itself |
+| 4 | Open `http://localhost:8000/docs` | any browser | instant once step 3's window prints "Uvicorn running" |
+| 5 | Leave that PowerShell window open | — | for as long as you want the link to keep working |
+
+**Why each piece is needed:** step 1 turns on the engine (nothing else can run
+without it). Step 3 turns on the four background services *and* the API — the
+API is a separate program from the four containers, and it is specifically
+the thing that answers when your browser opens the link, so without it the
+containers can be perfectly healthy and the link will still fail to connect.
+The ~1 minute wait in step 3 is that API loading the AI model into memory;
+it happens fresh every time the API starts, because closing the window stops
+it (the four containers, and all the data already inside them, keep running
+in the background either way — only the API needs restarting).
+
+**If step 3 fails:** almost always because the containers had exited (the
+machine slept, restarted, or ran low on memory) — `docs/DEMO.md`'s
+"When something breaks" table below covers this and the other real failures
+already hit while building this project.
+
+---
+
 ## Before you record
 
 ```powershell
