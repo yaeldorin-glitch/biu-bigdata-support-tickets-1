@@ -12,6 +12,13 @@ Total runtime once images are pulled: about 8 minutes. Budget 30-40 minutes for
 the very first run — Docker pulls ~3GB of images and Spark resolves ~200MB of
 Ivy jars.
 
+**This file is the "how to run it" half.** For the "what does it all mean"
+half — every concept explained in plain language the moment it comes up, plus
+a full walkthrough of every API endpoint with real input/output examples —
+see the "מסע הכרטיס" guide (published as a Claude Artifact; ask whoever set
+this project up for the link if you don't have it). Read that once first;
+come back here when you're ready to actually run things.
+
 ---
 
 ## Quick reference: opening the demo link, every time
