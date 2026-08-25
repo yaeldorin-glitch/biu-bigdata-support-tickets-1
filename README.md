@@ -14,42 +14,9 @@ have we already solved?**
 
 ---
 
-## New to this project? Start here
-
-If you're a teammate joining this project for the first time, do these **in
-order** — each one only needed if the one before it wasn't enough for what
-you're trying to do.
-
-**1. Understand what this is (0 setup, ~30-40 min).** Read the "מסע הכרטיס"
-guide — ask whoever shared this repo with you for the link if you don't have
-it. It explains every concept from zero, in plain language, with a real
-ticket followed through the whole system. This alone is enough to understand
-the project and hold up in Q&A — nothing below is required just to
-*understand* it.
-
-**2. Get the code running, no Docker (~10 min).** This is enough to run the
-actual pipeline and see real output, without installing anything heavy:
-```powershell
-git clone https://github.com/yaeldorin-glitch/biu-bigdata-support-tickets-1.git
-cd biu-bigdata-support-tickets-1
-pip install -e .
-tickets-pipeline --limit 5000
-```
-This works immediately using the small sample dataset already committed in
-the repo — you do not need the full 26MB CSV for this step. It writes
-`output/report.json`. (If you *do* have the full `tickets.csv`, see
-[`data/README.md`](data/README.md) for exactly where it goes —
-`data\raw\tickets.csv` — to get the real numbers instead of sample-sized
-ones.)
-
-**3. Run the full live demo yourself (~30-40 min, optional).** Only do this
-if you specifically want to click through the live API on your own computer
-— for example if you'll be the one presenting live, or you want hands-on
-practice beyond what step 1 already covered. Needs Docker Desktop installed
-first (docker.com, free). Then see
-["Opening the live demo link, step by step"](#opening-the-live-demo-link-step-by-step)
-below — expect it to take much longer than the times listed there, since
-Docker has to download ~3GB the first time on a new computer.
+**New teammate, or just joining this project?** Everything about getting
+started — understanding it, running the code, running the live demo — is in
+one place: [`docs/DEMO.md`](docs/DEMO.md). Start there, not here.
 
 ---
 
@@ -165,36 +132,8 @@ make api         # http://localhost:8000/docs
 
 MinIO's console is on <http://localhost:9001> (`minioadmin` / `minioadmin`).
 Verified against this exact sequence — see [`docs/DEMO.md`](docs/DEMO.md) for
-the bugs that surfaced the first time and how each was fixed.
-
-### Opening the live demo link, step by step
-
-This is the short version for opening `http://localhost:8000/docs` on a
-machine where the stack has already been used before (Docker, dependencies
-and the dataset are already in place):
-
-1. **Open Docker Desktop** (double-click it, or it may already be running —
-   check for its icon in the system tray). Wait until it says it's running;
-   this can take under a minute.
-2. **Open PowerShell inside the project folder.** In File Explorer, browse
-   into the folder, type `powershell` in the address bar, press Enter.
-3. **Run one command:**
-   ```powershell
-   .\run.ps1 -Stack
-   ```
-   This brings up Kafka, MinIO, Elasticsearch and Spark, waits for
-   Elasticsearch to be ready, and then automatically starts the demo API in
-   the same window.
-4. **Wait.** The first response after it says "Starting the demo link" takes
-   about a minute — it is loading the AI model, not stuck.
-5. **Open <http://localhost:8000/docs> in your browser.**
-6. **Leave that PowerShell window open** for as long as you want the link to
-   work. Closing it (or `Ctrl+C`) stops the demo API; the four Docker
-   containers keep running on their own either way.
-
-If step 3 says Docker isn't running, go back to step 1. If the link still
-doesn't load after a full minute, see the troubleshooting table in
-[`docs/DEMO.md`](docs/DEMO.md).
+the bugs that surfaced the first time and how each was fixed, and for the
+step-by-step of opening `http://localhost:8000/docs` once the stack is up.
 
 > **Dataset.** The 26MB CSV is CC BY-NC 4.0 and is not committed. See
 > [`data/README.md`](data/README.md) for how to fetch it. A stratified 300-row

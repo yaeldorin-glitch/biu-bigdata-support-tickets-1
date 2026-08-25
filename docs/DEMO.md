@@ -21,6 +21,34 @@ come back here when you're ready to actually run things.
 
 ---
 
+## New teammate? Start here
+
+Do these **in order** — each one only if the one before it wasn't enough for
+what you're actually trying to do. Don't do more setup than your goal needs.
+
+**1. Understand the project (0 setup, ~30-40 min).** Read "מסע הכרטיס" (link
+above). That alone is enough to understand the project and hold up in Q&A —
+nothing below is required just to *understand* it.
+
+**2. Run the code, no Docker (~10 min).**
+```powershell
+git clone https://github.com/yaeldorin-glitch/biu-bigdata-support-tickets-1.git
+cd biu-bigdata-support-tickets-1
+pip install -e .
+tickets-pipeline --limit 5000
+```
+Works immediately off the sample dataset already committed in the repo — the
+full 26MB CSV is not required for this step. Writes `output/report.json`.
+
+**3. Run the live demo yourself (~30-40 min, optional).** Only if you'll be
+presenting live from your own computer, or want hands-on practice beyond
+step 1. Needs Docker Desktop installed (docker.com, free), then the "Quick
+reference" section right below — expect it to take much longer than the
+times listed there, since Docker downloads ~3GB the first time on a new
+computer.
+
+---
+
 ## Quick reference: opening the demo link, every time
 
 This is the short answer to "what do I actually run, and why." Everything
@@ -125,7 +153,40 @@ that finds the problems.
 
 ---
 
-## The sequence
+## The sequence — the simple version
+
+The full pipeline (streaming new data live, on camera) is documented further
+below for reference, but you do **not** need it for the recording — the index
+already has 17,354 real tickets in it from earlier verification, and showing
+already-real data is completely honest. This version uses **one PowerShell
+window and one browser tab**, nothing else, and covers the same grading
+criteria with far less that can go wrong on camera.
+
+### Everything you actually do, in order
+
+| # | Where | What | Say / show |
+|---|---|---|---|
+| 1 | PowerShell window, inside the project folder | `.\run.ps1 -Stack` — wait for it to finish (~2-3 min) | while waiting: "this brings up Kafka, MinIO, Elasticsearch and Spark — four of the course technologies" |
+| 2 | Same window, once it prints "Uvicorn running" | nothing — just leave this window open for the rest of the recording | this window *is* now serving the demo link |
+| 3 | Browser | open `http://localhost:8000/docs` | "this is the live API, backed by 17,354 real tickets already indexed" |
+| 4 | Browser, in `/compare` | type `q`: `I was charged twice for my subscription`, click Execute | point at a semantic result that shares no words with the query but is clearly relevant — "this is what the AI capability actually buys us" |
+| 5 | Browser, in `/route` | type `text`: `Our production database has been unreachable for two hours and customers cannot check out` | say the number out loud: **64.8% accuracy vs. a 29.2% majority-class baseline** |
+| 6 | Browser, in `/ask` | type `question`: `What are the most common billing complaints?` | point at `citations` — "the answer only uses real retrieved tickets, and invented citations get stripped before they'd reach a user" |
+| 7 | Browser, in `/kpis` | click Execute, no input needed | say: "German-labelled tickets are wrong 27.2% of the time vs. 0.05% for English — and Service Outages is 4% of volume but 71% high-priority" |
+
+That's the whole recording. Steps 4-7 are exactly the rows from "Things to
+actually type in" above — you've already tried these once, so on the actual
+recording you're repeating something familiar, not doing it for the first
+time.
+
+**If you also want to show the live streaming pipeline itself** (optional,
+not required — the data being already-real and already-indexed is enough),
+the full version with the producer and Spark streaming job is below, under
+"The full sequence, with live streaming."
+
+---
+
+## The full sequence, with live streaming (optional)
 
 ### 0. Safety net first (30 seconds)
 
@@ -172,19 +233,21 @@ and field types are immutable — the only fix is a full reindex.
 
 ### 3. Stream the data (3 minutes)
 
-Two terminals. First the producer:
+Two separate PowerShell windows, both open at the same time (open a second
+window the same way as the first — File Explorer → the project folder → type
+`powershell` in the address bar). First, in window A, the producer:
 
 ```powershell
 tickets-producer --rate 200
 ```
 
-Then the streaming job. Note the target is `docker/spark/run_module.py`, not
-`stream_job.py` directly: `spark-submit` executes its target file as a bare
-script with no parent package, and `stream_job.py` uses relative imports
-(`from ..config import ...`) that only resolve when Python loads it as part of
-the `tickets` package. The launcher runs it as a real module import instead —
-the same effect as `python -m tickets.spark.stream_job`, which `spark-submit`
-has no flag for:
+Then in window B, the streaming job. Note the target is
+`docker/spark/run_module.py`, not `stream_job.py` directly: `spark-submit`
+executes its target file as a bare script with no parent package, and
+`stream_job.py` uses relative imports (`from ..config import ...`) that only
+resolve when Python loads it as part of the `tickets` package. The launcher
+runs it as a real module import instead — the same effect as
+`python -m tickets.spark.stream_job`, which `spark-submit` has no flag for:
 
 ```powershell
 docker compose -f docker-compose.slim.yml exec spark spark-submit `
@@ -192,7 +255,8 @@ docker compose -f docker-compose.slim.yml exec spark spark-submit `
   /opt/project/docker/spark/run_module.py tickets.spark.stream_job --trigger-seconds 5
 ```
 
-While it runs, show the data landing in three places:
+While it runs, show the data landing in three places (a third window, or your
+browser, for these — do not close windows A or B):
 
 - **MinIO** — <http://localhost:9001> (`minioadmin` / `minioadmin`) — the `lake`
   bucket — `bronze/` filling with Parquet, then `silver/`
@@ -205,9 +269,10 @@ whose retention is finite.
 
 ### 4. Batch KPIs (1 minute)
 
-Stop the streaming job first (`Ctrl+C`, or `docker compose -f
-docker-compose.slim.yml exec spark pkill -f SparkSubmit` — it is a persistent
-query and will not exit on its own), then:
+Stop the streaming job first (in window B: `Ctrl+C`, or in window A:
+`docker compose -f docker-compose.slim.yml exec spark pkill -f SparkSubmit` —
+it is a persistent query and will not exit on its own), then, in either
+window:
 
 ```powershell
 docker compose -f docker-compose.slim.yml exec spark spark-submit `
@@ -221,61 +286,19 @@ the two cannot silently drift.
 
 ### 5. The AI capability (2 minutes) — this is the part that matters
 
+In a PowerShell window (a fresh one, or window A once the commands above have
+finished):
+
 ```powershell
-uvicorn tickets.serving.api:app --port 8000
+python -m uvicorn tickets.serving.api:app --host 0.0.0.0 --port 8000
 ```
 
-Open <http://localhost:8000/docs>.
-
-**a. Semantic vs keyword, side by side.** This is the single most convincing
-screen in the demo:
-
-```
-GET /compare?q=I was charged twice for my subscription
-```
-
-Three rankings for one query. Show a result that semantic search found and BM25
-missed because it shares no words with the query.
-
-**b. Routing a ticket that does not exist yet.** Type something new:
-
-```
-POST /route
-{"text": "Our production database has been unreachable for two hours and customers cannot check out"}
-```
-
-The response gives the rule-based guess, the k-NN guess and the linear SVM guess
-with its confidence. Say the number out loud: **64.8% accuracy against a 29.2%
-majority-class baseline**, and macro-F1 0.645 against 0.045.
-
-**c. RAG.**
-
-```
-POST /ask
-{"question": "What are the most common billing complaints?"}
-```
-
-Point out that with no API key configured it answers extractively from the
-retrieved tickets rather than failing — and that invented citations are stripped
-before you ever see them.
+Open <http://localhost:8000/docs>. From here on, follow rows 4-6 of "The
+sequence — the simple version" above — same endpoints, same examples.
 
 ### 6. KPIs (1 minute)
 
-```
-GET /kpis
-```
-
-The slim stack drops Kibana (see "Before you record" above), so this is the
-real demo path for the aggregates, not a fallback — it reads the same
-`ticket_kpis` data straight from Elasticsearch (or `output/kpis.json` offline).
-
-Show two findings that change a decision:
-
-- Tickets labelled `de` are mislabelled **27.2%** of the time; tickets labelled
-  `en`, **0.05%**. A one-directional upstream defect, invisible in the 11.7%
-  headline.
-- Service Outages is 4.0% of volume but **71.0%** high priority. Staffing to
-  volume would under-resource it badly.
+Same as row 7 of the simple version above: `GET /kpis`, no input needed.
 
 ---
 
