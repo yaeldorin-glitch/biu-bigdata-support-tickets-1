@@ -156,7 +156,9 @@ if ($Stack) {
     Say "    MinIO console http://localhost:9001   (minioadmin / minioadmin)"
     Say "    Spark UI      http://localhost:4040"
     Say ""
-    Say "Next, in TWO separate PowerShell windows (both in this folder):" "Cyan"
+    Say "To stream new tickets live (optional -- the index already has data in it" "Cyan"
+    Say "from previous runs, so this is only needed to show live streaming), in TWO" "Cyan"
+    Say "separate PowerShell windows (both in this folder):" "Cyan"
     Say "    1)  tickets-producer --rate 200"
     Say "    2)  docker compose -f docker-compose.slim.yml exec spark spark-submit --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1,org.apache.hadoop:hadoop-aws:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.262,org.elasticsearch:elasticsearch-spark-30_2.12:8.13.4 docker/spark/run_module.py tickets.spark.stream_job --trigger-seconds 5"
     Say ""
@@ -165,6 +167,14 @@ if ($Stack) {
     Say " stream_job.py's relative imports. See docs/DEMO.md.)" "DarkGray"
     Say ""
     Say "See docs\DEMO.md for the full runbook." "Cyan"
+    Say ""
+    Say "=================================================================" "Cyan"
+    Say " Starting the demo link now: http://localhost:8000/docs" "Cyan"
+    Say "=================================================================" "Cyan"
+    Say "First request after this takes about a minute -- it is loading the AI" "DarkGray"
+    Say "model, not stuck. Leave this window open for the whole demo; Ctrl+C stops it." "DarkGray"
+    Say ""
+    python -m uvicorn tickets.serving.api:app --host 0.0.0.0 --port 8000
     exit 0
 }
 

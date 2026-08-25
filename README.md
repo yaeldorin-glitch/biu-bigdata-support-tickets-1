@@ -128,6 +128,35 @@ MinIO's console is on <http://localhost:9001> (`minioadmin` / `minioadmin`).
 Verified against this exact sequence — see [`docs/DEMO.md`](docs/DEMO.md) for
 the bugs that surfaced the first time and how each was fixed.
 
+### Opening the live demo link, step by step
+
+This is the short version for opening `http://localhost:8000/docs` on a
+machine where the stack has already been used before (Docker, dependencies
+and the dataset are already in place):
+
+1. **Open Docker Desktop** (double-click it, or it may already be running —
+   check for its icon in the system tray). Wait until it says it's running;
+   this can take under a minute.
+2. **Open PowerShell inside the project folder.** In File Explorer, browse
+   into the folder, type `powershell` in the address bar, press Enter.
+3. **Run one command:**
+   ```powershell
+   .\run.ps1 -Stack
+   ```
+   This brings up Kafka, MinIO, Elasticsearch and Spark, waits for
+   Elasticsearch to be ready, and then automatically starts the demo API in
+   the same window.
+4. **Wait.** The first response after it says "Starting the demo link" takes
+   about a minute — it is loading the AI model, not stuck.
+5. **Open <http://localhost:8000/docs> in your browser.**
+6. **Leave that PowerShell window open** for as long as you want the link to
+   work. Closing it (or `Ctrl+C`) stops the demo API; the four Docker
+   containers keep running on their own either way.
+
+If step 3 says Docker isn't running, go back to step 1. If the link still
+doesn't load after a full minute, see the troubleshooting table in
+[`docs/DEMO.md`](docs/DEMO.md).
+
 > **Dataset.** The 26MB CSV is CC BY-NC 4.0 and is not committed. See
 > [`data/README.md`](data/README.md) for how to fetch it. A stratified 300-row
 > sample **is** committed, and the runner falls back to it automatically, so
