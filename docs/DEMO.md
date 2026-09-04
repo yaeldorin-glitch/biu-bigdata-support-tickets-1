@@ -29,7 +29,11 @@ read "מסע הכרטיס" — that's a separate guide, not this file:
 | 5 | Browser, `/compare` | `q`: `I was charged twice for my subscription` | point at a semantic result sharing no words with the query — "this is what the AI capability buys us" |
 | 6 | Browser, `/route` | `text`: `The server crashed overnight and I cannot access any of my files. This is extremely urgent.` | say out loud: **64.8% accuracy vs. a 29.2% majority-class baseline** — this example gets confident, matching predictions from all three methods, which is worth pointing at |
 | 7 | Browser, `/ask` | `question`: `What are the most common billing complaints?` | point at `citations` — "only built from real retrieved tickets" |
-| 8 | Browser, `/kpis` | click Execute, no input | say: "German-labelled tickets are wrong 27.2% of the time vs. 0.05% for English; Service Outages is 4% of volume but 71% high-priority" |
+
+`/kpis` is optional — skip it if someone earlier in the presentation already
+covers those findings (German mislabeling, Service Outages priority); no
+need to repeat them. If nobody else covers it, add it back as step 8 the
+same way, `GET /kpis`, no input needed.
 
 That's the whole thing. You don't need the producer, the Spark streaming
 job, or anything else — the index already has real data in it, and showing
