@@ -14,7 +14,7 @@ name: biu-tickets
 
 services:
   kafka:
-    image: bitnami/kafka:3.7
+    image: soldevelo/kafka:3.7
     container_name: tickets-kafka
     ports:
       - "9092:9092"   # host clients (the producer)
