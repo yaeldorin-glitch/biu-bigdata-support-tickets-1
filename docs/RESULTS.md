@@ -18,7 +18,6 @@ _Generated from `output/report.json`. Embedding backend: **sentence-transformers
 |---|---|---|---|
 | `majority_class` | 29.2% | 0.045 | 7,145 |
 | `keyword_rules` | 27.4% | 0.208 | 7,145 |
-| `embedding_centroid` | 22.0% | 0.205 | 7,145 |
 | `embedding_knn_k5` | 64.6% | 0.605 | 7,145 |
 | `linear_svm_tfidf` | 64.8% | 0.645 | 7,145 |
 
