@@ -123,6 +123,7 @@ def _init_offline(limit: int | None = None) -> None:
 
 
 def _init_elastic() -> None:
+    from ..ai.router import LinearRouter
     from ..ai.search import ElasticIndex
     from ..core.embeddings import build_backend, set_backend
     from .es_client import get_client
@@ -140,6 +141,26 @@ def _init_elastic() -> None:
     state.index = ElasticIndex(client, settings.elastic.index_tickets, backend)
     state.mode = f"elasticsearch ({settings.elastic.url}, {backend.name})"
     logger.info("API ready against Elasticsearch: %s", state.mode)
+
+    # The linear SVM router was previously only fitted in offline mode, so
+    # /route silently dropped the "linear_svm" field whenever running against
+    # the real index -- the exact mode the live demo actually uses. Fit it
+    # here too, from a sample of already-labelled documents already indexed.
+    try:
+        limit = int(os.getenv("ROUTE_FIT_SAMPLE", "5000"))
+        hits = client.search(
+            index=settings.elastic.index_tickets,
+            query={"exists": {"field": "queue"}},
+            size=limit,
+            _source=["text_redacted", "queue"],
+        )["hits"]["hits"]
+        texts = [h["_source"].get("text_redacted", "") for h in hits]
+        labels = [h["_source"]["queue"] for h in hits]
+        if texts:
+            state.linear_router = LinearRouter().fit(texts, labels)
+            logger.info("linear SVM router fitted on %d labelled tickets from Elasticsearch", len(texts))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("linear router unavailable (%s)", exc)
 
 
 @app.on_event("startup")
