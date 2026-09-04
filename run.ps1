@@ -174,6 +174,13 @@ if ($Stack) {
     Say "First request after this takes about a minute -- it is loading the AI" "DarkGray"
     Say "model, not stuck. Leave this window open for the whole demo; Ctrl+C stops it." "DarkGray"
     Say ""
+    # Must match what Spark used to index the tickets (offline, forced there by
+    # docker-compose.slim.yml to fit memory) -- otherwise the API embeds search
+    # queries with a DIFFERENT model than the one that embedded the documents,
+    # and semantic search silently returns near-meaningless rankings (two
+    # incompatible vector spaces being compared). Found live, the hard way.
+    $env:EMBEDDING_BACKEND = "offline"
+    $env:OFFLINE_EMBEDDING_MODEL = Join-Path $PSScriptRoot "output\offline_embedding_model.joblib"
     python -m uvicorn tickets.serving.api:app --host 0.0.0.0 --port 8000
     exit 0
 }
